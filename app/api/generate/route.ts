@@ -6,8 +6,9 @@ import { getSupabaseClient } from '@/lib/supabase';
 import OpenAI from 'openai';
 import sharp from 'sharp';
 
-export const maxDuration = 60; // Increase timeout for long AI generation
+export const maxDuration = 120; // Allow up to 2 minutes for long AI generation
 const GENERATIONS_TABLE = 'a4_generations';
+const OPENROUTER_TIMEOUT_MS = 120000;
 
 export async function POST(request: NextRequest) {
   const isProduction = process.env.NODE_ENV === 'production';
@@ -100,12 +101,16 @@ export async function POST(request: NextRequest) {
     // Call OpenRouter
     console.log('Sending custom prompt to OpenRouter:', prompt.substring(0, 100) + '...');
     console.time('OpenRouter_AI_Call');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), OPENROUTER_TIMEOUT_MS);
+
     const apiResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
       },
+      signal: controller.signal,
       body: JSON.stringify({
         model: 'sourceful/riverflow-v2-fast-preview',
         messages: [
@@ -120,13 +125,20 @@ export async function POST(request: NextRequest) {
         modalities: ['image']
       }),
     });
+    clearTimeout(timeoutId);
 
     if (!apiResponse.ok) {
       console.timeEnd('OpenRouter_AI_Call');
       let errorDetail = 'Unknown error';
       try {
-        const errorData = await apiResponse.json();
-        errorDetail = JSON.stringify(errorData);
+        const contentType = apiResponse.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const errorData = await apiResponse.json();
+          errorDetail = JSON.stringify(errorData);
+        } else {
+          const errorText = await apiResponse.text();
+          errorDetail = errorText.slice(0, 300) || 'Non-JSON upstream error';
+        }
         console.error('OpenRouter API Error Details:', errorDetail);
       } catch (e) { }
       throw new Error(`OpenRouter Error ${apiResponse.status}: ${errorDetail}`);
@@ -221,6 +233,15 @@ export async function POST(request: NextRequest) {
     console.error('CRITICAL ERROR during generation:', error);
     // Log stack trace for Vercel logs
     if (error.stack) console.error(error.stack);
+
+    if (error?.name === 'AbortError') {
+      return NextResponse.json(
+        {
+          error: 'Generation timed out due to upstream inactivity. Please try again with a shorter prompt or retry.'
+        },
+        { status: 504 }
+      );
+    }
 
     return NextResponse.json(
       {
