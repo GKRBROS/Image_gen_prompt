@@ -64,7 +64,11 @@ export default function ImageGenerator() {
             errorMessage = errorData.error || errorMessage;
           } else {
             const text = await response.text();
-            errorMessage = text.slice(0, 100) || errorMessage;
+            if (/inactivity timeout/i.test(text) || /<html/i.test(text)) {
+              errorMessage = "Request timed out while generating the image. Please retry.";
+            } else {
+              errorMessage = text.slice(0, 150) || errorMessage;
+            }
           }
         } catch (e) {
           console.error("Error parsing error response:", e);

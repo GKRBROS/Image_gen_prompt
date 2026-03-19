@@ -9,6 +9,7 @@ import sharp from 'sharp';
 export const maxDuration = 120; // Allow up to 2 minutes for long AI generation
 const GENERATIONS_TABLE = 'a4_generations';
 const OPENROUTER_TIMEOUT_MS = 120000;
+const SKIP_OPTIONAL_STORAGE_UPLOADS = process.env.NETLIFY === 'true' || process.env.NODE_ENV === 'production';
 
 export async function POST(request: NextRequest) {
   const isProduction = process.env.NODE_ENV === 'production';
@@ -53,22 +54,24 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseClient();
 
-    // Upload to Supabase Storage
-    console.log('Uploading input to Supabase Storage...');
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('generated-images')
-      .upload(`uploads/${filename}`, buffer, {
-        contentType: image.type,
-        upsert: false
-      });
-
-    if (uploadError) {
-      console.error('Supabase upload error:', uploadError);
-    } else {
-      const { data: { publicUrl } } = supabase.storage
+    // Uploading the raw input is optional; skip on serverless production for speed.
+    if (!SKIP_OPTIONAL_STORAGE_UPLOADS) {
+      console.log('Uploading input to Supabase Storage...');
+      const { error: uploadError } = await supabase.storage
         .from('generated-images')
-        .getPublicUrl(`uploads/${filename}`);
-      uploadedImageUrl = publicUrl;
+        .upload(`uploads/${filename}`, buffer, {
+          contentType: image.type,
+          upsert: false
+        });
+
+      if (uploadError) {
+        console.error('Supabase upload error:', uploadError);
+      } else {
+        const { data: { publicUrl } } = supabase.storage
+          .from('generated-images')
+          .getPublicUrl(`uploads/${filename}`);
+        uploadedImageUrl = publicUrl;
+      }
     }
 
     // Resize image for OpenRouter
@@ -183,22 +186,24 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Upload to Supabase Storage
-    console.log('Uploading generated image to Supabase Storage...');
-    const { data: genData, error: genError } = await supabase.storage
-      .from('generated-images')
-      .upload(`generated/${generatedFilename}`, imageBuffer, {
-        contentType: 'image/png',
-        upsert: false
-      });
-
-    if (genError) {
-      console.error('Supabase generated upload error:', genError);
-    } else {
-      const { data: { publicUrl } } = supabase.storage
+    // Upload intermediate generated image only when not in time-constrained serverless environments.
+    if (!SKIP_OPTIONAL_STORAGE_UPLOADS) {
+      console.log('Uploading generated image to Supabase Storage...');
+      const { error: genError } = await supabase.storage
         .from('generated-images')
-        .getPublicUrl(`generated/${generatedFilename}`);
-      finalGeneratedUrl = publicUrl;
+        .upload(`generated/${generatedFilename}`, imageBuffer, {
+          contentType: 'image/png',
+          upsert: false
+        });
+
+      if (genError) {
+        console.error('Supabase generated upload error:', genError);
+      } else {
+        const { data: { publicUrl } } = supabase.storage
+          .from('generated-images')
+          .getPublicUrl(`generated/${generatedFilename}`);
+        finalGeneratedUrl = publicUrl;
+      }
     }
 
     // Merge with background
