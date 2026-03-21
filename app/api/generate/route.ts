@@ -88,9 +88,9 @@ export async function POST(request: NextRequest) {
     const dataUrl = `data:image/jpeg;base64,${base64Image}`;
 
     // Custom prompt is required
-    if (!customPrompt) {
+    if (!customPrompt || !customPrompt.trim()) {
       return NextResponse.json(
-        { error: 'Custom prompt is required' },
+        { error: 'Prompt is required' },
         { status: 400 }
       );
     }
@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Call OpenRouter
-    console.log('Sending custom prompt to OpenRouter:', prompt.substring(0, 100) + '...');
+    console.log('Sending prompt to OpenRouter:', prompt.substring(0, 100) + '...');
     console.time('OpenRouter_AI_Call');
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), OPENROUTER_TIMEOUT_MS);
