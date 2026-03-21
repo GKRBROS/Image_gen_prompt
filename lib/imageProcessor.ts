@@ -72,11 +72,11 @@ export async function mergeImages(
     console.log(`Dimensions - BG: ${bgWidth}x${bgHeight}, Layer: ${layerWidth}x${layerHeight}`);
 
     // STEP 1: Composite generated image BEHIND layer.png
-    // Auto-fit logic: Fill width 100% and constrain height to 60% for consistent poster look
-    // regardless of input aspect ratio.
+    // Fill the layer strongly (like reference final.jpeg) so the subject
+    // occupies the full hero area with confident framing.
     const charWidth = layerWidth;
-    const charHeight = Math.floor(layerHeight * 0.60); // Auto-fit height set to 60%
-    const charTopOffset = Math.floor(layerHeight * 0.155);
+    const charHeight = Math.floor(layerHeight * 0.66);
+    const charTopOffset = Math.floor(layerHeight * 0.14);
     const charLeftOffset = 0;
 
     const layerWithCharacter = await sharp(layerPath)
