@@ -9,6 +9,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "start:pm2": "pm2 start npm --name nextjs-app -- start",
+    "deploy:pm2": "npm run build && pm2 reload nextjs-app --update-env",
     "lint": "next lint"
   },
   "dependencies": {
