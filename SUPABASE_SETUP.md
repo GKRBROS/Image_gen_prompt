@@ -25,6 +25,7 @@
 4. Click **Run** to execute
 
 **OR** manually create:
+
 - **Storage Bucket**: Go to **Storage** → Create bucket named `generated-images` (make it PUBLIC)
 - **Database Table**: Run the SQL from `supabase-setup.sql` in SQL Editor
 
@@ -58,6 +59,7 @@ npm run dev
 ```
 
 Generate an image and check:
+
 - ✅ Image appears in Supabase Storage (`generated-images` bucket)
 - ✅ Metadata saved in `a4_generations` table
 
@@ -74,21 +76,25 @@ Generate an image and check:
 ## 🎯 What Changed
 
 ### Files Modified:
+
 - `app/api/generate/route.ts` - Uses Supabase Storage + Database
 - `lib/imageProcessor.ts` - Removed Vercel Blob
 - `lib/supabase.ts` - **NEW** Supabase client
 
 ### Files Created:
+
 - `supabase-setup.sql` - Database schema
 - `.env.example` - Environment template
 
 ### Packages:
+
 - ➕ Added: `@supabase/supabase-js`
 - ➖ Removed: `@vercel/blob`
 
 ## 📊 Database Schema
 
 **Table: `a4_generations`**
+
 - `id` (UUID) - Auto-generated
 - `name` (TEXT) - Person's name
 - `designation` (TEXT) - Person's designation
@@ -101,11 +107,13 @@ Generate an image and check:
 ## 🔍 Troubleshooting
 
 **Images not uploading?**
+
 - Check bucket name is exactly `generated-images`
 - Ensure bucket is set to PUBLIC
 - Verify environment variables are correct
 
 **Database insert failing?**
+
 - Run the SQL setup script again
 - Check RLS policies are enabled
 - Verify table name is `a4_generations`

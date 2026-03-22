@@ -228,15 +228,15 @@ export async function mergeImages(
         const svgWidth = A4_WIDTH_PX;
         const svgHeight = A4_HEIGHT_PX;
         let svgContent = `<svg width="${svgWidth}" height="${svgHeight}" xmlns="http://www.w3.org/2000/svg"><defs><style>text { font-family: Arial, sans-serif; }</style></defs>`;
-        
+
         if (nameText) {
           const fontSize = Math.max(nameFontSize, 24);
           const strokeWidth = Math.max(2, Math.floor(fontSize * 0.035));
           svgContent += `<text x="${Math.floor(svgWidth / 2)}" y="${nameY}" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="${strokeWidth}" font-size="${fontSize}" font-weight="700" font-family="Cal Sans, Arial, sans-serif" text-anchor="middle" dominant-baseline="middle">${nameText}</text>`;
         }
-        
+
         svgContent += `</svg>`;
-        
+
         finalCompositeLayers.push({
           input: Buffer.from(svgContent),
           top: 0,

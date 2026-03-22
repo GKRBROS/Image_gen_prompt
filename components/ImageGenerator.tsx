@@ -14,7 +14,9 @@ export default function ImageGenerator() {
   const [useCustomPrompt, setUseCustomPrompt] = useState(false);
   const [customPrompt, setCustomPrompt] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploadedImagePreview, setUploadedImagePreview] = useState<string | null>(null);
+  const [uploadedImagePreview, setUploadedImagePreview] = useState<
+    string | null
+  >(null);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [finalImage, setFinalImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -87,7 +89,9 @@ export default function ImageGenerator() {
       setGeneratedImage(data.generatedImage);
       setFinalImage(data.finalImage);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An unexpected error occurred");
+      setError(
+        err instanceof Error ? err.message : "An unexpected error occurred",
+      );
     } finally {
       setLoading(false);
     }
@@ -112,7 +116,9 @@ export default function ImageGenerator() {
         <div className="space-y-6 sm:space-y-8">
           <div className="grid grid-cols-1 gap-6">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-blue-300 uppercase tracking-wider">Full Name</label>
+              <label className="text-sm font-medium text-blue-300 uppercase tracking-wider">
+                Full Name
+              </label>
               <input
                 type="text"
                 placeholder="e.g. MOHANLAL"
@@ -131,24 +137,28 @@ export default function ImageGenerator() {
               Portrait Style <span className="text-red-400">*</span>
             </label>
             <div className="grid grid-cols-3 gap-2 sm:gap-3 md:gap-4">
-              {(["neutral", "male", "female"] as GenderOption[]).map((option) => (
-                <button
-                  key={option}
-                  onClick={() => setGender(option)}
-                  disabled={loading}
-                  className={`py-2 sm:py-3 px-3 sm:px-4 rounded-lg font-medium text-xs sm:text-sm transition-all duration-200 capitalize ${
-                    loading ? "opacity-50 cursor-not-allowed" : ""
-                  } ${
-                    gender === option
-                      ? "bg-blue-600 text-white shadow-lg ring-2 ring-blue-400/50"
-                      : "bg-white/5 text-gray-300 border border-white/10 hover:border-white/20"
-                  }`}
-                >
-                  {option}
-                </button>
-              ))}
+              {(["neutral", "male", "female"] as GenderOption[]).map(
+                (option) => (
+                  <button
+                    key={option}
+                    onClick={() => setGender(option)}
+                    disabled={loading}
+                    className={`py-2 sm:py-3 px-3 sm:px-4 rounded-lg font-medium text-xs sm:text-sm transition-all duration-200 capitalize ${
+                      loading ? "opacity-50 cursor-not-allowed" : ""
+                    } ${
+                      gender === option
+                        ? "bg-blue-600 text-white shadow-lg ring-2 ring-blue-400/50"
+                        : "bg-white/5 text-gray-300 border border-white/10 hover:border-white/20"
+                    }`}
+                  >
+                    {option}
+                  </button>
+                ),
+              )}
             </div>
-            <p className="text-xs text-gray-400">Choose the gender presentation style for the portrait</p>
+            <p className="text-xs text-gray-400">
+              Choose the gender presentation style for the portrait
+            </p>
           </div>
 
           <div className="flex items-center justify-end gap-2 mb-2">
@@ -173,8 +183,12 @@ export default function ImageGenerator() {
           {useCustomPrompt && (
             <div className="space-y-2 animate-in fade-in-50 duration-200 p-3 sm:p-4 bg-white/5 border border-blue-500/30 rounded-lg mb-4">
               <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs font-medium text-blue-300 uppercase tracking-wider">Edit Prompt</span>
-                <span className="text-xs px-2 py-1 bg-orange-500/20 text-orange-300 rounded">Optional</span>
+                <span className="text-xs font-medium text-blue-300 uppercase tracking-wider">
+                  Edit Prompt
+                </span>
+                <span className="text-xs px-2 py-1 bg-orange-500/20 text-orange-300 rounded">
+                  Optional
+                </span>
               </div>
               <textarea
                 placeholder="Edit the prompt to customize the portrait generation..."
@@ -186,8 +200,16 @@ export default function ImageGenerator() {
                 onChange={(e) => setCustomPrompt(e.target.value)}
               />
               <div className="flex justify-between items-center text-xs pt-2">
-                <p className={customPrompt ? "text-green-400/60" : "text-gray-500"}>{customPrompt ? "✓ Ready" : "Empty"}</p>
-                <p className="text-gray-500">{customPrompt.length} characters</p>
+                <p
+                  className={
+                    customPrompt ? "text-green-400/60" : "text-gray-500"
+                  }
+                >
+                  {customPrompt ? "✓ Ready" : "Empty"}
+                </p>
+                <p className="text-gray-500">
+                  {customPrompt.length} characters
+                </p>
               </div>
               <button
                 onClick={() => setCustomPrompt(PROMPTS[gender])}
@@ -203,7 +225,9 @@ export default function ImageGenerator() {
 
           <div className="pt-4 border-t border-white/5">
             {uploadedImagePreview ? (
-              <div className={`space-y-4 sm:space-y-6 text-center ${loading ? "opacity-50 pointer-events-none" : ""}`}>
+              <div
+                className={`space-y-4 sm:space-y-6 text-center ${loading ? "opacity-50 pointer-events-none" : ""}`}
+              >
                 <div className="relative inline-block group">
                   <Image
                     src={uploadedImagePreview}
@@ -221,12 +245,24 @@ export default function ImageGenerator() {
                     disabled={loading}
                     className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg disabled:cursor-not-allowed"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
                     </svg>
                   </button>
                 </div>
-                <p className="text-blue-400 font-medium text-sm sm:text-base">Image Selected! ✨</p>
+                <p className="text-blue-400 font-medium text-sm sm:text-base">
+                  Image Selected! ✨
+                </p>
               </div>
             ) : (
               <ImageUpload onImageUpload={handleFileSelect} />
@@ -252,8 +288,19 @@ export default function ImageGenerator() {
             >
               {loading ? (
                 <>
-                  <svg className="animate-spin h-5 w-5 sm:h-6 sm:w-6 text-white" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <svg
+                    className="animate-spin h-5 w-5 sm:h-6 sm:w-6 text-white"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
                     <path
                       className="opacity-75"
                       fill="currentColor"
