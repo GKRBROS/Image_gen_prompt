@@ -84,42 +84,48 @@ overexposed face, harsh lighting, strong highlights, blown highlights, bright ho
 `,
 
   female: `Reimagine the uploaded female person as a cinematic, high-end professional portrait with a refined corporate aesthetic and subtle heroic presence. Use the attached image as the sole identity reference. Preserve exact facial identity, bone structure, proportions, skin tone, natural texture, and hairstyle with high fidelity. Do not alter defining features. Ignore original pose.
+
 Render as an upper-body shot in a 2:3 vertical aspect ratio, true 4K resolution. Pose: body facing forward, head naturally aligned, eyes looking directly at the camera (no flipping or mirroring). Posture upright, composed, confident, with relaxed shoulders.
+
 Expression & Smile:
- Strictly preserve the original expression, including exact mouth shape, lip position, and smile intensity. Do not exaggerate or enhance the smile. Do not increase teeth visibility.
+Strictly preserve the original expression, including exact mouth shape, lip position, and smile intensity. Do not exaggerate or enhance the smile. Do not increase teeth visibility. Keep it natural, calm, and authentic.
+
 Age Adjustment:
- Subtly make the subject appear slightly younger (minor freshness only), without smoothing skin or removing natural details.
+Make the subject appear slightly younger in a subtle, realistic way (minor freshness and reduced fatigue only), SLIGHT smoothing skin
+
 Hair:
- Preserve original hairstyle exactly (length, volume, texture, flow).
+Preserve original hairstyle exactly, including length, volume, texture, and natural flow. Do not restyle or artificially enhance.
+
 Makeup:
-If present, preserve exactly as is
-If minimal or none, keep natural (do not add heavy or artificial makeup)
+If makeup is present, preserve it exactly as is. If minimal or none, keep it natural—do not add heavy or artificial makeup.
+
+Facial Features:
+Do not alter lip size, eye shape, nose structure, or facial contours. Maintain natural proportions and identity.
+
 Restrictions:
+
 No tattoos
 No ornaments or accessories (no jewelry, earrings, chains, etc.)
+
 Clothing:
- Maintain same outfit with realistic fabric texture and natural folds. No added logos or patterns.
+Maintain the same outfit with realistic fabric texture, natural folds, and accurate material rendering. No added logos or patterns.
 
-💡 Lighting (Fixed & Optimized)
-Soft, warm editorial studio lighting with balanced exposure:
-Gentle natural warm tone (subtle golden warmth, not orange)
-Even illumination across the face
-Soft shadows for depth (no harsh contrast)
-Controlled highlights (no blown-out or overexposed areas)
-No bright hotspots or facial glare
-Natural skin tone preservation
-Smooth light falloff for professional look
-
+Lighting:
+Professional editorial studio lighting. Soft, neutral,DIFFUSED, and well-balanced with natural highlights and gentle shadow depth. No dramatic contrast, no colored lighting, no neon tones, no stylization.
+ 
 Skin & Realism:
- Maintain natural skin texture (pores, fine details). No smoothing or beauty filters.
-Color Accuracy:
- True-to-life skin tones with slight warmth. No color cast or tint spill.
-Image Quality:
- Ultra-sharp but natural detail. No over-sharpening, halos, blur, distortion, or asymmetry.
-Background:
- Transparent PNG with clean alpha. No gradients, colors, or environment.
+Maintain natural skin texture. Avoid airbrushing, plastic smoothing, or beauty filters.
 
-🚫 Negative Prompt (Female)
-overexposed face, harsh lighting, blown highlights, bright hotspots, face glare, shiny skin, uneven lighting, high contrast lighting, hard shadows, neon lighting, colored lighting, magenta tint, purple tint, color cast, exaggerated smile, wide grin, teeth enhancement, artificial expression, heavy makeup, glam makeup, lipstick enhancement, skin smoothing, airbrushed skin, plastic skin, face distortion, asymmetry, blur, low detail, over-sharpening, halos, noise, artifacts, glitch, unrealistic rendering
-`,
+Color Accuracy:
+Preserve true-to-life skin tones. Prevent any color cast or background light spill on the face.
+
+Image Quality:
+Ultra-sharp facial detail, crisp natural eyes, consistent sharpness across the face. Avoid over-sharpening, halos, blur, distortion, or asymmetry. Ensure full photorealistic coherence.
+
+Background:
+Completely removed. Output as a transparent PNG with clean alpha edges. No gradients, colors, environment, text, or watermark.
+
+🚫 Negative Prompt
+
+exaggerated smile, wide grin, teeth enhancement, artificial expression, forced smile, over-friendly expression, skin smoothing, airbrushed skin, beauty filter, plastic skin, waxy texture, face distortion, asymmetry, warped features, deformed face, bad anatomy, blur, low resolution, low detail, over-sharpening, halos, noise, artifacts, glitch, duplicate features, extra eyes, extra lips, misaligned eyes, unnatural eyes, heavy makeup, over makeup, glam makeup, lipstick enhancement, neon lighting, colored lighting, magenta tint, purple tint, color cast, background light spill, stylized lighting, cartoonish, painterly, unrealistic rendering, oversaturated colors`,
 };
