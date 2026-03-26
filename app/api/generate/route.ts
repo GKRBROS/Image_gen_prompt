@@ -10,6 +10,15 @@ import sharp from 'sharp';
 export const maxDuration = 120; // Allow up to 2 minutes for long AI generation
 const GENERATIONS_TABLE = 'a4_generations';
 const OPENROUTER_TIMEOUT_MS = 120000;
+const DEFAULT_OPENROUTER_IMAGE_MODELS = ['sourceful/riverflow-v2-fast-preview'];
+const OPENROUTER_IMAGE_MODELS = (process.env.OPENROUTER_IMAGE_MODELS || '')
+  .split(',')
+  .map((model) => model.trim())
+  .filter(Boolean);
+const IMAGE_MODEL_CANDIDATES = OPENROUTER_IMAGE_MODELS.length
+  ? OPENROUTER_IMAGE_MODELS
+  : DEFAULT_OPENROUTER_IMAGE_MODELS;
+const RETRYABLE_OPENROUTER_STATUS = new Set([429, 500, 502, 503, 504]);
 const SKIP_OPTIONAL_STORAGE_UPLOADS = process.env.NETLIFY === 'true' || process.env.NODE_ENV === 'production';
 const ALLOWED_IMAGE_MIME_TYPES = new Set([
   'image/png',
@@ -130,53 +139,84 @@ export async function POST(request: NextRequest) {
       throw new Error('OPENROUTER_API_KEY not configured');
     }
 
-    // Call OpenRouter
+    // Call OpenRouter with model fallback
     console.log('Sending prompt to OpenRouter:', prompt.substring(0, 100) + '...');
+    console.log('OpenRouter model candidates:', IMAGE_MODEL_CANDIDATES.join(', '));
     console.time('OpenRouter_AI_Call');
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), OPENROUTER_TIMEOUT_MS);
 
-    const apiResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      signal: controller.signal,
-      body: JSON.stringify({
-        model: 'sourceful/riverflow-v2-fast-preview',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              { type: 'image_url', image_url: { url: dataUrl } }
-            ],
-          },
-        ],
-        modalities: ['image']
-      }),
-    });
-    clearTimeout(timeoutId);
+    let result: any = null;
+    let lastOpenRouterError = 'Unknown OpenRouter error';
 
-    if (!apiResponse.ok) {
-      console.timeEnd('OpenRouter_AI_Call');
-      let errorDetail = 'Unknown error';
+    for (const model of IMAGE_MODEL_CANDIDATES) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), OPENROUTER_TIMEOUT_MS);
+
       try {
-        const contentType = apiResponse.headers.get('content-type') || '';
-        if (contentType.includes('application/json')) {
-          const errorData = await apiResponse.json();
-          errorDetail = JSON.stringify(errorData);
-        } else {
-          const errorText = await apiResponse.text();
-          errorDetail = errorText.slice(0, 300) || 'Non-JSON upstream error';
+        const apiResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          signal: controller.signal,
+          body: JSON.stringify({
+            model,
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  { type: 'text', text: prompt },
+                  { type: 'image_url', image_url: { url: dataUrl } }
+                ],
+              },
+            ],
+            modalities: ['image']
+          }),
+        });
+
+        if (apiResponse.ok) {
+          result = await apiResponse.json();
+          console.log(`OpenRouter success with model: ${model}`);
+          break;
         }
-        console.error('OpenRouter API Error Details:', errorDetail);
-      } catch (e) { }
-      throw new Error(`OpenRouter Error ${apiResponse.status}: ${errorDetail}`);
+
+        let errorDetail = 'Unknown error';
+        try {
+          const contentType = apiResponse.headers.get('content-type') || '';
+          if (contentType.includes('application/json')) {
+            const errorData = await apiResponse.json();
+            errorDetail = JSON.stringify(errorData);
+          } else {
+            const errorText = await apiResponse.text();
+            errorDetail = errorText.slice(0, 300) || 'Non-JSON upstream error';
+          }
+        } catch (e) {
+          errorDetail = 'Failed to parse upstream error response';
+        }
+
+        lastOpenRouterError = `Model ${model} failed (${apiResponse.status}): ${errorDetail}`;
+        console.error('OpenRouter API Error Details:', lastOpenRouterError);
+
+        if (!RETRYABLE_OPENROUTER_STATUS.has(apiResponse.status)) {
+          break;
+        }
+      } catch (error: any) {
+        if (error?.name === 'AbortError') {
+          lastOpenRouterError = `Model ${model} timed out`;
+        } else {
+          lastOpenRouterError = `Model ${model} request failed: ${error?.message || 'Unknown request error'}`;
+        }
+        console.error('OpenRouter request failure:', lastOpenRouterError);
+      } finally {
+        clearTimeout(timeoutId);
+      }
     }
 
-    const result = await apiResponse.json();
+    if (!result) {
+      console.timeEnd('OpenRouter_AI_Call');
+      throw new Error(`OpenRouter upstream unavailable. ${lastOpenRouterError}`);
+    }
+
     console.timeEnd('OpenRouter_AI_Call');
     const responseMessage = result.choices[0].message;
     let generatedImageUrl: string | undefined = responseMessage.images?.[0]?.image_url?.url;
