@@ -69,6 +69,7 @@ const applyHeaders = (request: NextRequest, response: NextResponse) => {
     response.headers.set('Access-Control-Allow-Origin', allowedOrigin);
     response.headers.set('Access-Control-Allow-Methods', ALLOW_METHODS);
     response.headers.set('Access-Control-Allow-Headers', getAllowedHeaders(request));
+    response.headers.set('Access-Control-Allow-Credentials', 'true');
   }
 
   return response;
