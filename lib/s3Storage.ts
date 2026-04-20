@@ -9,7 +9,10 @@ const AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY?.trim() || '';
 const RAW_BUCKET_VALUE = process.env.AWS_S3_BUCKET?.trim() || process.env.BUCKET_NAME?.trim() || '';
 const EXPLICIT_KEY_PREFIX = process.env.AWS_S3_KEY_PREFIX?.trim() || '';
 const PUBLIC_BASE_URL = process.env.AWS_S3_PUBLIC_BASE_URL?.trim() || '';
-const S3_SIGNED_URL_EXPIRES_SEC = Number(process.env.AWS_S3_SIGNED_URL_EXPIRES_SEC || '3600');
+const S3_SIGNED_URL_EXPIRES_SEC_RAW = Number(process.env.AWS_S3_SIGNED_URL_EXPIRES_SEC || '86400');
+const S3_SIGNED_URL_EXPIRES_SEC = Number.isFinite(S3_SIGNED_URL_EXPIRES_SEC_RAW)
+  ? Math.min(Math.max(Math.floor(S3_SIGNED_URL_EXPIRES_SEC_RAW), 1), 604800)
+  : 86400;
 const USE_PRESIGNED_URLS = (process.env.AWS_S3_USE_PRESIGNED_URLS || 'true').toLowerCase() === 'true';
 
 const [bucketFromPath, ...pathPrefixParts] = RAW_BUCKET_VALUE.split('/').filter(Boolean);

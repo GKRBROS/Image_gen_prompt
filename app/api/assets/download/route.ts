@@ -30,6 +30,7 @@ const parseAllowedAssetHosts = () => {
 };
 
 const ALLOWED_ASSET_HOSTS = parseAllowedAssetHosts();
+const DOWNLOAD_API_KEY = process.env.DOWNLOAD_API_KEY?.trim() || '';
 
 const sanitizeFileName = (input: string) => {
   const value = input.trim();
@@ -44,6 +45,16 @@ export async function OPTIONS(request: NextRequest) {
 export async function GET(request: NextRequest) {
   const blockedOriginResponse = rejectIfOriginNotAllowed(request);
   if (blockedOriginResponse) return blockedOriginResponse;
+
+  if (DOWNLOAD_API_KEY) {
+    const headerKey = request.headers.get('x-download-api-key')?.trim() || '';
+    const queryKey = request.nextUrl.searchParams.get('apiKey')?.trim() || '';
+    const providedKey = headerKey || queryKey;
+
+    if (!providedKey || providedKey !== DOWNLOAD_API_KEY) {
+      return apiJson(request, { error: 'Unauthorized download key' }, { status: 401 });
+    }
+  }
 
   const rawUrl = request.nextUrl.searchParams.get('url') || '';
   const download = request.nextUrl.searchParams.get('download') === '1';
