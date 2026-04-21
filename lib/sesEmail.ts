@@ -8,6 +8,7 @@ const AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY?.trim() || '';
 const SENDER_EMAIL = process.env.AWS_SES_FROM_EMAIL?.trim() || 'no-reply@frameforge.one';
 const RETURN_PATH_EMAIL = process.env.AWS_SES_RETURN_PATH?.trim() || SENDER_EMAIL;
 const SES_CONFIGURATION_SET = process.env.AWS_SES_CONFIGURATION_SET?.trim() || '';
+const USE_SES_TRACKING = (process.env.AWS_SES_USE_TRACKING || 'false').toLowerCase() === 'true';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.trim() || 'http://localhost:3000';
 const SES_LOGO_URL = process.env.AWS_SES_LOGO_URL?.trim() || '';
 
@@ -286,7 +287,7 @@ export const sendOtpEmail = async (input: { to: string; otp: string }) => {
     new SendEmailCommand({
       Source: `FrameForge Security <${SENDER_EMAIL}>`,
       ReturnPath: RETURN_PATH_EMAIL,
-      ...(SES_CONFIGURATION_SET ? { ConfigurationSetName: SES_CONFIGURATION_SET } : {}),
+      ...(USE_SES_TRACKING && SES_CONFIGURATION_SET ? { ConfigurationSetName: SES_CONFIGURATION_SET } : {}),
       Destination: {
         ToAddresses: [input.to],
       },
