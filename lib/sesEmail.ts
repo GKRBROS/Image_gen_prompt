@@ -5,8 +5,9 @@ import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
 const SES_REGION = process.env.AWS_SES_REGION?.trim() || process.env.AWS_REGION?.trim() || 'us-east-1';
 const AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID?.trim() || '';
 const AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY?.trim() || '';
-const SENDER_EMAIL = process.env.AWS_SES_FROM_EMAIL?.trim() || 'no-reply@frameforge.one';
+const SENDER_EMAIL = process.env.AWS_SES_FROM_EMAIL?.trim() || 'no-reply@mail.frameforge.one';
 const RETURN_PATH_EMAIL = process.env.AWS_SES_RETURN_PATH?.trim() || SENDER_EMAIL;
+const REPLY_TO_EMAIL = process.env.AWS_SES_REPLY_TO_EMAIL?.trim() || 'support@frameforge.one';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.trim() || 'http://localhost:3000';
 const SES_LOGO_URL = process.env.AWS_SES_LOGO_URL?.trim() || '';
 
@@ -101,12 +102,8 @@ const buildOtpEmailHtml = (otp: string, helpCenterUrl: string, logoUrl: string) 
       style="
         max-width: 680px;
         margin: 0 auto;
-        padding: 45px 30px 60px;
-        background: #f4f7ff;
-        background-image: linear-gradient(180deg, #2d334a 0%, #f4f7ff 52%);
-        background-repeat: no-repeat;
-        background-size: 800px 452px;
-        background-position: top center;
+        padding: 30px 20px;
+        background: #f6f7fb;
         font-size: 14px;
         color: #434343;
       "
@@ -154,10 +151,10 @@ const buildOtpEmailHtml = (otp: string, helpCenterUrl: string, logoUrl: string) 
         <div
           style="
             margin: 0;
-            margin-top: 70px;
-            padding: 92px 30px 115px;
+            margin-top: 24px;
+            padding: 40px 20px 48px;
             background: #ffffff;
-            border-radius: 30px;
+            border-radius: 10px;
             text-align: center;
           "
         >
@@ -280,6 +277,7 @@ export const sendOtpEmail = async (input: { to: string; otp: string }) => {
     new SendEmailCommand({
       Source: `FrameForge Security <${SENDER_EMAIL}>`,
       ReturnPath: RETURN_PATH_EMAIL,
+      ReplyToAddresses: [REPLY_TO_EMAIL],
       Destination: {
         ToAddresses: [input.to],
       },
