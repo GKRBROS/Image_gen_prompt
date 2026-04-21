@@ -9,7 +9,8 @@ const SENDER_EMAIL = process.env.AWS_SES_FROM_EMAIL?.trim() || 'no-reply@framefo
 const RETURN_PATH_EMAIL = process.env.AWS_SES_RETURN_PATH?.trim() || SENDER_EMAIL;
 const SES_CONFIGURATION_SET = process.env.AWS_SES_CONFIGURATION_SET?.trim() || '';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.trim() || 'http://localhost:3000';
-const SES_LOGO_URL = process.env.AWS_SES_LOGO_URL?.trim() || '';
+const DEFAULT_LOGO_URL = 'https://memento.frameforge.one/logo_black.png';
+const SES_LOGO_URL = process.env.AWS_SES_LOGO_URL?.trim() || DEFAULT_LOGO_URL;
 
 const isPublicAppUrl = (url: string) => {
   try {
@@ -62,7 +63,7 @@ const getDefaultLogoUrl = (publicUrl: string) => {
   if (publicUrl) {
     return `${publicUrl.replace(/\/$/, '')}/logo_black.png`;
   }
-  return 'https://memento.frameforge.one/logo_black.png';
+  return DEFAULT_LOGO_URL;
 };
 
 const buildOtpEmailHtml = (otp: string, helpCenterUrl: string, logoUrl: string) => `
@@ -83,7 +84,7 @@ const buildOtpEmailHtml = (otp: string, helpCenterUrl: string, logoUrl: string) 
     style="
       margin: 0;
       font-family: 'Poppins', Arial, sans-serif;
-      background: #ffffff;
+      background: #f7f8fb;
       font-size: 14px;
     "
   >
@@ -92,11 +93,9 @@ const buildOtpEmailHtml = (otp: string, helpCenterUrl: string, logoUrl: string) 
         max-width: 680px;
         margin: 0 auto;
         padding: 45px 30px 60px;
-        background: #f4f7ff;
-        background-image: linear-gradient(180deg, #2d334a 0%, #f4f7ff 52%);
-        background-repeat: no-repeat;
-        background-size: 800px 452px;
-        background-position: top center;
+        background: #ffffff;
+        border: 1px solid #e7ebf2;
+        border-radius: 24px;
         font-size: 14px;
         color: #434343;
       "
@@ -111,19 +110,19 @@ const buildOtpEmailHtml = (otp: string, helpCenterUrl: string, logoUrl: string) 
                     <tr>
                       <td style="padding: 0; vertical-align: middle;">
                         <span
-                          style="display: inline-block; background: #ffffff; padding: 6px 10px; border-radius: 14px; line-height: 0;"
+                          style="display: inline-block; background: #ffffff; padding: 6px 12px; border-radius: 14px; line-height: 0; border: 1px solid #eef1f6;"
                         >
                           <img
                             alt="Frame Forge"
                             src="${logoUrl}"
-                            width="110"
-                            height="28"
-                            style="display: block; border: 0; outline: none; text-decoration: none; object-fit: contain;"
+                            width="136"
+                            height="34"
+                            style="display: block; border: 0; outline: none; text-decoration: none; object-fit: contain; max-width: 100%;"
                           />
                         </span>
                       </td>
                       <td style="padding-left: 10px; vertical-align: middle;">
-                        <span style="font-size: 16px; line-height: 30px; font-weight: 600; color: #ffffff; letter-spacing: 0.5px;">
+                        <span style="font-size: 16px; line-height: 30px; font-weight: 600; color: #1f2937; letter-spacing: 0.5px;">
                           FRAME FORGE
                         </span>
                       </td>
@@ -133,7 +132,7 @@ const buildOtpEmailHtml = (otp: string, helpCenterUrl: string, logoUrl: string) 
               </td>
               <td style="text-align: right;">
                 <span
-                  style="font-size: 16px; line-height: 30px; color: #ffffff;"
+                  style="font-size: 16px; line-height: 30px; color: #6b7280;"
                   >${getDisplayDate()}</span
                 >
               </td>
@@ -151,6 +150,7 @@ const buildOtpEmailHtml = (otp: string, helpCenterUrl: string, logoUrl: string) 
             background: #ffffff;
             border-radius: 30px;
             text-align: center;
+            border: 1px solid #edf0f5;
           "
         >
           <div style="width: 100%; max-width: 489px; margin: 0 auto;">
@@ -210,7 +210,7 @@ const buildOtpEmailHtml = (otp: string, helpCenterUrl: string, logoUrl: string) 
             margin-top: 90px;
             text-align: center;
             font-weight: 500;
-            color: #8c8c8c;
+            color: #6b7280;
           "
         >
           Need help? Visit our
@@ -239,15 +239,15 @@ const buildOtpEmailHtml = (otp: string, helpCenterUrl: string, logoUrl: string) 
             margin-top: 40px;
             font-size: 16px;
             font-weight: 600;
-            color: #434343;
+            color: #1f2937;
           "
         >
           Frame Forge
         </p>
-        <p style="margin: 0; margin-top: 8px; color: #434343;">
+        <p style="margin: 0; margin-top: 8px; color: #6b7280;">
           AI image generation platform.
         </p>
-        <p style="margin: 0; margin-top: 16px; color: #434343;">
+        <p style="margin: 0; margin-top: 16px; color: #6b7280;">
           Copyright © ${new Date().getFullYear()} Frame Forge. All rights reserved.
         </p>
       </footer>
@@ -264,8 +264,7 @@ export const sendOtpEmail = async (input: { to: string; otp: string }) => {
   const subject = 'Your Frame Forge OTP code';
   const publicUrl = isPublicAppUrl(APP_URL) ? APP_URL : '';
   const helpCenterUrl = publicUrl || 'https://frameforge.one';
-  const logoUrl = SES_LOGO_URL
-    || getDefaultLogoUrl(publicUrl);
+  const logoUrl = SES_LOGO_URL || getDefaultLogoUrl(publicUrl);
   const appUrlTextLine = publicUrl || 'https://frameforge.one';
   const textBody = [
     `Your Frame Forge OTP is: ${input.otp}`,
