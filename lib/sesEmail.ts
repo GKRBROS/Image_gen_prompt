@@ -122,6 +122,11 @@ const buildOtpEmailHtml = (otp: string, helpCenterUrl: string, logoUrl: string) 
                           />
                         </span>
                       </td>
+                      <td style="padding-left: 10px; vertical-align: middle;">
+                        <span style="font-size: 16px; line-height: 30px; font-weight: 600; color: #ffffff; letter-spacing: 0.5px;">
+                          FRAME FORGE
+                        </span>
+                      </td>
                     </tr>
                   </tbody>
                 </table>
