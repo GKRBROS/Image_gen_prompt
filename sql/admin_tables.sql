@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS admin_users (
 -- Admin OTPs table
 CREATE TABLE IF NOT EXISTS admin_otps (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  email VARCHAR(255) NOT NULL REFERENCES admin_users(email) ON DELETE CASCADE,
+  email VARCHAR(255) NOT NULL UNIQUE REFERENCES admin_users(email) ON DELETE CASCADE,
   otp_code_hash VARCHAR(255),
   otp_expires_at TIMESTAMP WITH TIME ZONE,
   otp_verified_at TIMESTAMP WITH TIME ZONE,

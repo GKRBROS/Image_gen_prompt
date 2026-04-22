@@ -12,11 +12,18 @@ export async function sendOtpToAdmin(email: string) {
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
   const otpHash = Buffer.from(otp).toString('base64');
   
-  await db.from('admin_otps').upsert({ 
-    email, 
-    otp_code_hash: otpHash, 
-    otp_expires_at: expiresAt 
-  });
+  await db.from('admin_otps').upsert(
+    { 
+      email, 
+      otp_code_hash: otpHash, 
+      otp_expires_at: expiresAt,
+      is_verified: false,
+      verification_attempts: 0,
+      otp_verified_at: null,
+      updated_at: new Date().toISOString()
+    },
+    { onConflict: 'email' }
+  );
 
   try {
     await sendOtpEmail({ to: email, otp });
