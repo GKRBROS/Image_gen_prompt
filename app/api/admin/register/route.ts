@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { db } from '@/lib/supabase';
 import { requireAdminAuth, rateLimitAdminRegister } from '@/lib/adminAuth';
 import { apiJson, handleCorsPreflight, rejectIfOriginNotAllowed } from '@/lib/apiSecurity';
+import { sendAdminWelcomeEmail } from '@/lib/sesEmail';
 
 export async function OPTIONS(request: NextRequest) {
   return handleCorsPreflight(request);
@@ -34,6 +35,14 @@ export async function POST(req: NextRequest) {
   const { error } = await db.from('admin_users').insert([{ email, name }]);
   if (error) {
     return apiJson(req, { error: 'Failed to register admin (may already exist)' }, { status: 409 });
+  }
+
+  // Send welcome email to new admin
+  try {
+    await sendAdminWelcomeEmail({ to: email, name });
+  } catch (emailError) {
+    console.error('Failed to send admin welcome email:', emailError);
+    // Non-critical error, don't fail the response
   }
 
   return apiJson(req, { success: true, email, name });
