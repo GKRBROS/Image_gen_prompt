@@ -1,3 +1,139 @@
+#
+# Admin API Endpoints (Dashboard)
+
+
+These endpoints are for secure admin authentication and management. Only registered admin emails can request OTPs and register new admins. All security measures (CORS, rate limiting, OTP hashing, session binding, strict validation) are enforced as in the user flow.
+
+**Session/OTP Expiry Note:**
+
+- Admins must re-enter the OTP if they exit the dashboard UI or if the OTP validity period (default: 10 minutes) expires. This ensures that only actively verified admins can access the dashboard at any time.
+
+---
+
+### Admin: Request OTP
+
+**Endpoint:** `POST /api/admin/request-otp`
+
+**Description:** Send a One-Time Password (OTP) to a registered admin email for dashboard login.
+
+**Request Headers:**
+
+```
+Content-Type: application/json
+Origin: <allowed-admin-origin>
+```
+
+**Request Body:**
+
+```json
+{
+  "email": "admin@example.com"
+}
+```
+
+**Response (200 - Success):**
+
+```json
+{
+  "success": true,
+  "email": "admin@example.com",
+  "expiresAt": "2026-04-20T10:25:00.000Z",
+  "expiresInMinutes": 10,
+  "emailSent": true
+}
+```
+
+**Error Responses:**
+
+- 400: `{ "error": "Email is required" }`
+- 403: `{ "error": "Email is not a registered admin" }`
+- 429: `{ "error": "Too many OTP requests", "retryAfterSeconds": 30 }`
+- 500: `{ "error": "Failed to send OTP" }`
+
+---
+
+### Admin: Register New Admin
+
+**Endpoint:** `POST /api/admin/register`
+
+**Description:** Register a new admin (must be called by an authenticated admin).
+
+**Request Headers:**
+
+```
+Content-Type: application/json
+Origin: <allowed-admin-origin>
+```
+
+**Request Body:**
+
+```json
+{
+  "email": "newadmin@example.com",
+  "name": "New Admin"
+}
+```
+
+**Response (200 - Success):**
+
+```json
+{
+  "success": true,
+  "email": "newadmin@example.com",
+  "name": "New Admin"
+}
+```
+
+**Error Responses:**
+
+- 400: `{ "error": "Email and name are required" }`
+- 401: `{ "error": "Unauthorized" }`
+- 409: `{ "error": "Failed to register admin (may already exist)" }`
+- 429: `{ "error": "Too many registration requests", "retryAfterSeconds": 30 }`
+
+---
+
+## Admin Database Tables
+
+See `sql/admin_tables.sql`:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+CREATE TABLE IF NOT EXISTS admin_users (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  email VARCHAR(255) NOT NULL UNIQUE,
+  name VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS admin_otps (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  email VARCHAR(255) NOT NULL REFERENCES admin_users(email) ON DELETE CASCADE,
+  otp_code_hash VARCHAR(255),
+  otp_expires_at TIMESTAMP WITH TIME ZONE,
+  otp_verified_at TIMESTAMP WITH TIME ZONE,
+  is_verified BOOLEAN DEFAULT FALSE,
+  verification_attempts INTEGER DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
+
+---
+
+**Security Measures:**
+
+- Strict CORS (admin origins only)
+- Rate limiting (per IP/email)
+- OTPs hashed and never stored in plaintext
+- Session binding and expiration
+- Only registered admins can request OTP
+- Only authenticated admins can register new admins
+- All validation and error handling as in user flow
+
+---
 # AI Image Generation API Documentation
 
 Complete API reference for the AI Image Generation service. These APIs enable email verification, image generation, and AI-powered image-to-Arcane-style transformation.
