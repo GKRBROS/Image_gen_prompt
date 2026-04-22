@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server';
 
 import { apiJson, handleCorsPreflight, rejectIfOriginNotAllowed } from '@/lib/apiSecurity';
 import { IMAGE_GENERATION_TABLE, normalizeEmail } from '@/lib/generationFlow';
+import { RATE_LIMITS, enforceRateLimit } from '@/lib/rateLimit';
+import { parseStrictJson, validateResetInput } from '@/lib/requestValidation';
 import { getSupabaseClient } from '@/lib/supabase';
 
 export const runtime = 'nodejs';
@@ -16,16 +18,32 @@ export async function POST(request: NextRequest) {
   if (blockedOriginResponse) return blockedOriginResponse;
 
   try {
-    const body = await request.json().catch(() => null);
-    const rawEmail = body?.email;
-    const rawRequestId = body?.requestId;
+    const body = await parseStrictJson(request);
 
-    if (typeof rawEmail !== 'string' || !rawEmail.trim()) {
-      return apiJson(request, { error: 'Email is required' }, { status: 400 });
+    const prevalidatedEmail = typeof body?.email === 'string' ? body.email : '';
+    const rateLimit = enforceRateLimit(request, {
+      endpointKey: 'resetGeneration',
+      limits: RATE_LIMITS.resetGeneration,
+      userIdentifier: prevalidatedEmail,
+    });
+    if (rateLimit.limited) {
+      return apiJson(
+        request,
+        {
+          error: 'Too many reset requests. Please wait before trying again.',
+          retryAfterSeconds: rateLimit.retryAfterSeconds,
+        },
+        { status: 429, headers: rateLimit.headers }
+      );
     }
 
-    const email = normalizeEmail(rawEmail);
-    const requestId = typeof rawRequestId === 'string' ? rawRequestId.trim() : '';
+    const validated = validateResetInput(body);
+    if ('error' in validated) {
+      return apiJson(request, { error: validated.error }, { status: 400 });
+    }
+
+    const email = normalizeEmail(validated.data.email);
+    const requestId = validated.data.requestId;
     const supabase = getSupabaseClient();
 
     const baseQuery = supabase

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { apiJson, applyCorsHeaders, handleCorsPreflight, rejectIfOriginNotAllowed } from '@/lib/apiSecurity';
+import { RATE_LIMITS, enforceRateLimit } from '@/lib/rateLimit';
+import { validateDownloadQuery } from '@/lib/requestValidation';
+import { getDownloadApiKeys, matchesAnySecret } from '@/lib/secrets';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -30,7 +33,7 @@ const parseAllowedAssetHosts = () => {
 };
 
 const ALLOWED_ASSET_HOSTS = parseAllowedAssetHosts();
-const DOWNLOAD_API_KEY = process.env.DOWNLOAD_API_KEY?.trim() || '';
+const DOWNLOAD_API_KEYS = getDownloadApiKeys();
 
 const sanitizeFileName = (input: string) => {
     const value = input.trim();
@@ -46,23 +49,40 @@ export async function GET(request: NextRequest) {
     const blockedOriginResponse = rejectIfOriginNotAllowed(request);
     if (blockedOriginResponse) return blockedOriginResponse;
 
-    if (DOWNLOAD_API_KEY) {
+    const parsedQuery = validateDownloadQuery(request);
+    if ('error' in parsedQuery) {
+        return apiJson(request, { error: parsedQuery.error }, { status: 400 });
+    }
+
+    const rateLimit = enforceRateLimit(request, {
+        endpointKey: 'assetDownload',
+        limits: RATE_LIMITS.assetDownload,
+        userIdentifier: parsedQuery.data.apiKey || parsedQuery.data.url,
+    });
+    if (rateLimit.limited) {
+        return apiJson(
+            request,
+            {
+                error: 'Too many download requests. Please retry in a moment.',
+                retryAfterSeconds: rateLimit.retryAfterSeconds,
+            },
+            { status: 429, headers: rateLimit.headers }
+        );
+    }
+
+    if (DOWNLOAD_API_KEYS.length > 0) {
         const headerKey = request.headers.get('x-download-api-key')?.trim() || '';
-        const queryKey = request.nextUrl.searchParams.get('apiKey')?.trim() || '';
+        const queryKey = parsedQuery.data.apiKey;
         const providedKey = headerKey || queryKey;
 
-        if (!providedKey || providedKey !== DOWNLOAD_API_KEY) {
+        if (!matchesAnySecret(providedKey, DOWNLOAD_API_KEYS)) {
             return apiJson(request, { error: 'Unauthorized download key' }, { status: 401 });
         }
     }
 
-    const rawUrl = request.nextUrl.searchParams.get('url') || '';
-    const download = request.nextUrl.searchParams.get('download') === '1';
-    const requestedName = request.nextUrl.searchParams.get('filename') || '';
-
-    if (!rawUrl) {
-        return apiJson(request, { error: 'url query parameter is required' }, { status: 400 });
-    }
+    const rawUrl = parsedQuery.data.url;
+    const download = parsedQuery.data.download;
+    const requestedName = parsedQuery.data.filename;
 
     let targetUrl: URL;
     try {

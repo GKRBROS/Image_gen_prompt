@@ -10,9 +10,10 @@ import {
   buildGenerationPrompt,
   GenderOption,
   IMAGE_GENERATION_TABLE,
-  normalizeEmail,
-  parseGender,
 } from '@/lib/generationFlow';
+import { RATE_LIMITS, enforceRateLimit } from '@/lib/rateLimit';
+import { validateGenerateFormData } from '@/lib/requestValidation';
+import { getOpenRouterApiKeys } from '@/lib/secrets';
 import { isS3Configured, uploadBufferToS3 } from '@/lib/s3Storage';
 import { getSupabaseClient } from '@/lib/supabase';
 
@@ -30,6 +31,7 @@ const OPENROUTER_IMAGE_MODELS = (process.env.OPENROUTER_IMAGE_MODELS || '')
   .split(',')
   .map((model) => model.trim())
   .filter(Boolean);
+const OPENROUTER_API_KEYS = getOpenRouterApiKeys();
 const IMAGE_MODEL_CANDIDATES = OPENROUTER_IMAGE_MODELS.length
   ? OPENROUTER_IMAGE_MODELS
   : DEFAULT_OPENROUTER_IMAGE_MODELS;
@@ -72,19 +74,29 @@ export async function POST(request: NextRequest) {
 
   try {
     const formData = await request.formData();
-    const photo = (formData.get('photo') || formData.get('image')) as File | null;
-    const email = normalizeEmail(String(formData.get('email') || ''));
-    const requestId = String(formData.get('requestId') || '').trim();
-    const name = String(formData.get('name') || '').trim();
-    const organization = String(formData.get('organization') || '').trim();
-    const rawGender = formData.get('gender') as string | null;
+    const prevalidatedEmail = typeof formData.get('email') === 'string' ? String(formData.get('email')) : '';
+    const rateLimit = enforceRateLimit(request, {
+      endpointKey: 'generate',
+      limits: RATE_LIMITS.generate,
+      userIdentifier: prevalidatedEmail,
+    });
+    if (rateLimit.limited) {
+      return apiJson(
+        request,
+        {
+          error: 'Too many generation requests. Please wait and retry.',
+          retryAfterSeconds: rateLimit.retryAfterSeconds,
+        },
+        { status: 429, headers: rateLimit.headers }
+      );
+    }
 
-    const gender: GenderOption = parseGender(rawGender);
+    const validated = validateGenerateFormData(formData);
+    if ('error' in validated) {
+      return apiJson(request, { error: validated.error }, { status: 400 });
+    }
 
-    if (!email) return apiJson(request, { error: 'Email is required' }, { status: 400 });
-    if (!photo) return apiJson(request, { error: 'No photo provided' }, { status: 400 });
-    if (!name) return apiJson(request, { error: 'Name is required' }, { status: 400 });
-    if (!organization) return apiJson(request, { error: 'Organization is required' }, { status: 400 });
+    const { photo, email, requestId, name, organization, gender } = validated.data;
 
     const supabase = getSupabaseClient();
 
@@ -140,7 +152,7 @@ export async function POST(request: NextRequest) {
       try {
         await mkdir(publicUploadsPath, { recursive: true }).catch(() => undefined);
         await writeFile(join(publicUploadsPath, filename), buffer);
-      } catch {}
+      } catch { }
     }
 
     if (isS3Configured()) {
@@ -170,43 +182,52 @@ export async function POST(request: NextRequest) {
     const dataUrl = `data:image/jpeg;base64,${resizedBuffer.toString('base64')}`;
     const prompt = buildGenerationPrompt({ name, organization, gender });
 
-    if (!process.env.OPENROUTER_API_KEY) throw new Error('OPENROUTER_API_KEY not configured');
+    if (OPENROUTER_API_KEYS.length === 0) throw new Error('OPENROUTER_API_KEY or OPENROUTER_API_KEYS must be configured');
 
     let result: any = null;
     let lastOpenRouterError = 'Unknown OpenRouter error';
 
-    for (const model of IMAGE_MODEL_CANDIDATES) {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), OPENROUTER_TIMEOUT_MS);
-      try {
-        const apiResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          signal: controller.signal,
-          body: JSON.stringify({
-            model,
-            messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUrl } }] }],
-            modalities: ['image'],
-          }),
-        });
-        if (apiResponse.ok) { result = await apiResponse.json(); break; }
-        let errorDetail = 'Unknown error';
+    for (const apiKey of OPENROUTER_API_KEYS) {
+      for (const model of IMAGE_MODEL_CANDIDATES) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), OPENROUTER_TIMEOUT_MS);
         try {
-          const contentType = apiResponse.headers.get('content-type') || '';
-          if (contentType.includes('application/json')) errorDetail = JSON.stringify(await apiResponse.json());
-          else errorDetail = (await apiResponse.text()).slice(0, 300) || 'Non-JSON upstream error';
-        } catch {
-          errorDetail = 'Failed to parse upstream error response';
+          const apiResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            signal: controller.signal,
+            body: JSON.stringify({
+              model,
+              messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUrl } }] }],
+              modalities: ['image'],
+            }),
+          });
+          if (apiResponse.ok) {
+            result = await apiResponse.json();
+            break;
+          }
+          let errorDetail = 'Unknown error';
+          try {
+            const contentType = apiResponse.headers.get('content-type') || '';
+            if (contentType.includes('application/json')) errorDetail = JSON.stringify(await apiResponse.json());
+            else errorDetail = (await apiResponse.text()).slice(0, 300) || 'Non-JSON upstream error';
+          } catch {
+            errorDetail = 'Failed to parse upstream error response';
+          }
+          lastOpenRouterError = `Model ${model} failed (${apiResponse.status}): ${errorDetail}`;
+          if (!RETRYABLE_OPENROUTER_STATUS.has(apiResponse.status)) break;
+        } catch (error: any) {
+          lastOpenRouterError = error?.name === 'AbortError' ? `Model ${model} timed out` : `Model ${model} request failed: ${error?.message || 'Unknown request error'}`;
+        } finally {
+          clearTimeout(timeoutId);
         }
-        lastOpenRouterError = `Model ${model} failed (${apiResponse.status}): ${errorDetail}`;
-        if (!RETRYABLE_OPENROUTER_STATUS.has(apiResponse.status)) break;
-      } catch (error: any) {
-        lastOpenRouterError = error?.name === 'AbortError' ? `Model ${model} timed out` : `Model ${model} request failed: ${error?.message || 'Unknown request error'}`;
-      } finally {
-        clearTimeout(timeoutId);
+      }
+
+      if (result) {
+        break;
       }
     }
 
@@ -231,7 +252,7 @@ export async function POST(request: NextRequest) {
         const publicGeneratedPath = join(process.cwd(), 'public', 'generated');
         await mkdir(publicGeneratedPath, { recursive: true }).catch(() => undefined);
         await writeFile(join(publicGeneratedPath, generatedFilename), imageBuffer);
-      } catch {}
+      } catch { }
     }
 
     if (isS3Configured()) {

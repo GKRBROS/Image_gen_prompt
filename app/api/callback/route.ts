@@ -1,24 +1,55 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
+
+import { apiJson, handleCorsPreflight, rejectIfOriginNotAllowed } from '@/lib/apiSecurity';
 import { mergeImages } from '@/lib/imageProcessor';
 import { jobStore } from '@/lib/jobStore';
+import { RATE_LIMITS, enforceRateLimit } from '@/lib/rateLimit';
+import { validateCallbackBody, validateCallbackJobId } from '@/lib/requestValidation';
+
+export async function OPTIONS(request: NextRequest) {
+  return handleCorsPreflight(request);
+}
 
 export async function POST(request: NextRequest) {
+  const blockedOriginResponse = rejectIfOriginNotAllowed(request);
+  if (blockedOriginResponse) return blockedOriginResponse;
+
   try {
     const searchParams = request.nextUrl.searchParams;
-    const jobId = searchParams.get('jobId');
+    const rawJobId = searchParams.get('jobId');
 
-    console.log(`POST /api/callback called with jobId: ${jobId}`);
-
-    if (!jobId) {
-      return NextResponse.json(
-        { error: 'Job ID not provided' },
-        { status: 400 }
+    const rateLimit = enforceRateLimit(request, {
+      endpointKey: 'callbackPost',
+      limits: RATE_LIMITS.callbackPost,
+      userIdentifier: rawJobId,
+    });
+    if (rateLimit.limited) {
+      return apiJson(
+        request,
+        {
+          error: 'Too many callback requests. Try again later.',
+          retryAfterSeconds: rateLimit.retryAfterSeconds,
+        },
+        { status: 429, headers: rateLimit.headers }
       );
     }
 
-    const body = await request.json();
+    const jobIdResult = validateCallbackJobId(rawJobId);
+    if ('error' in jobIdResult) {
+      return apiJson(request, { error: jobIdResult.error }, { status: 400 });
+    }
+    const jobId = jobIdResult.data;
+
+    console.log(`POST /api/callback called with jobId: ${jobId}`);
+
+    const bodyRaw = await request.json().catch(() => null);
+    const bodyValidated = validateCallbackBody(bodyRaw);
+    if ('error' in bodyValidated) {
+      return apiJson(request, { error: bodyValidated.error }, { status: 400 });
+    }
+    const body = bodyValidated.data;
 
     // Update job status in store
     const job = jobStore.get(jobId);
@@ -31,7 +62,9 @@ export async function POST(request: NextRequest) {
 
     // If generation is complete, process the result
     if (body.status === 'SUCCESS' && body.output) {
-      const generatedImageUrl = body.output.image_url || body.output[0];
+      const generatedImageUrl = Array.isArray(body.output)
+        ? body.output[0]
+        : body.output.image_url;
 
       if (generatedImageUrl) {
         try {
@@ -67,7 +100,7 @@ export async function POST(request: NextRequest) {
             job.status = 'completed';
           }
 
-          return NextResponse.json({
+          return apiJson(request, {
             success: true,
             message: 'Image processed successfully',
             jobId,
@@ -78,7 +111,8 @@ export async function POST(request: NextRequest) {
             job.status = 'error';
             job.error = error instanceof Error ? error.message : 'Processing failed';
           }
-          return NextResponse.json(
+          return apiJson(
+            request,
             { error: 'Failed to process generated image' },
             { status: 500 }
           );
@@ -86,14 +120,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({
+    return apiJson(request, {
       success: true,
       message: 'Callback received',
       jobId,
     });
   } catch (error: any) {
     console.error('Error in callback:', error);
-    return NextResponse.json(
+    return apiJson(
+      request,
       { error: error?.message || 'Callback processing failed' },
       { status: 500 }
     );
@@ -101,31 +136,50 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  const blockedOriginResponse = rejectIfOriginNotAllowed(request);
+  if (blockedOriginResponse) return blockedOriginResponse;
+
   try {
     const searchParams = request.nextUrl.searchParams;
-    const jobId = searchParams.get('jobId');
+    const rawJobId = searchParams.get('jobId');
+
+    const rateLimit = enforceRateLimit(request, {
+      endpointKey: 'callbackGet',
+      limits: RATE_LIMITS.callbackGet,
+      userIdentifier: rawJobId,
+    });
+    if (rateLimit.limited) {
+      return apiJson(
+        request,
+        {
+          error: 'Too many status checks. Please wait and try again.',
+          retryAfterSeconds: rateLimit.retryAfterSeconds,
+        },
+        { status: 429, headers: rateLimit.headers }
+      );
+    }
+
+    const jobIdResult = validateCallbackJobId(rawJobId);
+    if ('error' in jobIdResult) {
+      return apiJson(request, { error: jobIdResult.error }, { status: 400 });
+    }
+    const jobId = jobIdResult.data;
 
     console.log(`GET /api/callback called with jobId: ${jobId}`);
     console.log(`Current jobs in store:`, Array.from(jobStore.keys()));
-
-    if (!jobId) {
-      return NextResponse.json(
-        { error: 'Job ID not provided' },
-        { status: 400 }
-      );
-    }
 
     const job = jobStore.get(jobId);
 
     if (!job) {
       console.log(`Job ${jobId} not found in store`);
-      return NextResponse.json(
+      return apiJson(
+        request,
         { error: 'Job not found' },
         { status: 404 }
       );
     }
 
-    return NextResponse.json({
+    return apiJson(request, {
       success: true,
       jobId,
       status: job.status,
@@ -135,7 +189,8 @@ export async function GET(request: NextRequest) {
     });
   } catch (error: any) {
     console.error('Error fetching job status:', error);
-    return NextResponse.json(
+    return apiJson(
+      request,
       { error: error?.message || 'Failed to fetch job status' },
       { status: 500 }
     );

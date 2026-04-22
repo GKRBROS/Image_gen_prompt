@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { apiJson, handleCorsPreflight, rejectIfOriginNotAllowed } from '@/lib/apiSecurity';
 import { hashOtp, IMAGE_GENERATION_TABLE, isOtpExpired, normalizeEmail } from '@/lib/generationFlow';
+import { RATE_LIMITS, enforceRateLimit } from '@/lib/rateLimit';
+import { parseStrictJson, validateVerifyOtpInput } from '@/lib/requestValidation';
 import { getSupabaseClient } from '@/lib/supabase';
 
 export const runtime = 'nodejs';
@@ -16,20 +18,32 @@ export async function POST(request: NextRequest) {
   if (blockedOriginResponse) return blockedOriginResponse;
 
   try {
-    const body = await request.json().catch(() => null);
-    const rawEmail = body?.email;
-    const rawOtp = body?.otp;
+    const body = await parseStrictJson(request);
 
-    if (typeof rawEmail !== 'string' || !rawEmail.trim()) {
-      return apiJson(request, { error: 'Email is required' }, { status: 400 });
+    const prevalidatedEmail = typeof body?.email === 'string' ? body.email : '';
+    const rateLimit = enforceRateLimit(request, {
+      endpointKey: 'verifyOtp',
+      limits: RATE_LIMITS.verifyOtp,
+      userIdentifier: prevalidatedEmail,
+    });
+    if (rateLimit.limited) {
+      return apiJson(
+        request,
+        {
+          error: 'Too many verification attempts. Please wait and try again.',
+          retryAfterSeconds: rateLimit.retryAfterSeconds,
+        },
+        { status: 429, headers: rateLimit.headers }
+      );
     }
 
-    if (typeof rawOtp !== 'string' || !/^\d{6}$/.test(rawOtp.trim())) {
-      return apiJson(request, { error: 'Enter the 6-digit verification code' }, { status: 400 });
+    const validated = validateVerifyOtpInput(body);
+    if ('error' in validated) {
+      return apiJson(request, { error: validated.error }, { status: 400 });
     }
 
-    const email = normalizeEmail(rawEmail);
-    const otp = rawOtp.trim();
+    const email = normalizeEmail(validated.data.email);
+    const otp = validated.data.otp;
     const supabase = getSupabaseClient();
 
     const { data: requestRow, error: selectError } = await supabase
