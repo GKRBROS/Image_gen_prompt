@@ -11,11 +11,11 @@ const DEV_FALLBACK_OTP_SECRET = crypto.randomBytes(32).toString('hex');
 
 export const IMAGE_GENERATION_TABLE = 'image_generation_requests';
 
-export const normalizeEmail = (email: string) => email.trim().toLowerCase();
+export const normalizePhone = (phone: string) => phone.trim().replace(/\s+/g, '');
 
 export const generateOtp = () => crypto.randomInt(0, 1_000_000).toString().padStart(6, '0');
 
-export const hashOtp = (email: string, otp: string) => {
+export const hashOtp = (phone: string, otp: string) => {
 	const secret = OTP_SECRET || (process.env.NODE_ENV === 'production' ? '' : DEV_FALLBACK_OTP_SECRET);
 	if (!secret) {
 		throw new Error('OTP_SECRET must be configured in production environments');
@@ -23,7 +23,7 @@ export const hashOtp = (email: string, otp: string) => {
 
 	return crypto
 		.createHash('sha256')
-		.update(`${normalizeEmail(email)}:${otp}:${secret}`)
+		.update(`${normalizePhone(phone)}:${otp}:${secret}`)
 		.digest('hex');
 };
 

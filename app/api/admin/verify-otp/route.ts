@@ -1,7 +1,10 @@
 import { NextRequest } from 'next/server';
+
 import { apiJson, handleCorsPreflight, rejectIfOriginNotAllowed } from '@/lib/apiSecurity';
-import { validateAdminEmail } from '@/lib/adminAuth';
-import { getSupabaseClient } from '@/lib/supabase';
+import { verifyAdminOtp } from '@/lib/adminAuth';
+import { normalizePhone } from '@/lib/generationFlow';
+import { RATE_LIMITS, enforceRateLimit } from '@/lib/rateLimit';
+import { parseStrictJson } from '@/lib/requestValidation';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -11,99 +14,59 @@ export async function OPTIONS(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const originError = rejectIfOriginNotAllowed(request);
-  if (originError) return originError;
+  const blockedOriginResponse = rejectIfOriginNotAllowed(request);
+  if (blockedOriginResponse) return blockedOriginResponse;
+
+  const contentType = request.headers.get('content-type') ?? '';
+  if (!contentType.startsWith('application/json')) {
+    return apiJson(request, { error: 'Invalid content type' }, { status: 400 });
+  }
 
   try {
-    const { email, otp } = await request.json();
+    const body = await parseStrictJson(request);
 
-    if (!email || !otp) {
-      return apiJson(request, { error: 'Email and verification code are required' }, { status: 400 });
+    const rawPhone = typeof body?.phone === 'string' ? body.phone : '';
+    const rawOtp = typeof body?.otp === 'string' ? body.otp : '';
+
+    if (!rawPhone || !rawOtp) {
+      return apiJson(request, { error: 'Phone number and verification code are required' }, { status: 400 });
     }
 
-    const supabase = getSupabaseClient();
-
-    // 1. Check if the email is a registered admin
-    const admin = await validateAdminEmail(email);
-    if (!admin) {
-      return apiJson(request, { error: 'Access denied' }, { status: 403 });
+    // Rate limit per IP on verify endpoint
+    const rateLimit = enforceRateLimit(request, {
+      endpointKey: 'adminVerifyOtp',
+      limits: RATE_LIMITS.verifyOtp,
+    });
+    if (rateLimit.limited) {
+      return apiJson(
+        request,
+        { error: 'Too many verification attempts. Please wait and try again.', retryAfterSeconds: rateLimit.retryAfterSeconds },
+        { status: 429, headers: rateLimit.headers }
+      );
     }
 
-    // 2. Fetch the latest OTP for this admin
-    // We already have a unique constraint on email, but order by updated_at just in case 
-    // to always get the most recent one if duplicates exist before cleanup.
-    const { data: otpRow, error: selectError } = await supabase
-      .from('admin_otps')
-      .select('id, otp_code_hash, otp_expires_at, is_verified, verification_attempts')
-      .eq('email', email)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (selectError) {
-      console.error('Admin OTP verify select error:', selectError);
-      return apiJson(request, { error: 'Unable to verify OTP' }, { status: 500 });
+    // Validate OTP format before hitting the DB
+    if (!/^\d{6}$/.test(rawOtp.trim())) {
+      return apiJson(request, { error: 'Enter the 6-digit verification code' }, { status: 400 });
     }
 
-    if (!otpRow) {
-      return apiJson(request, { error: 'No verification request found for this email' }, { status: 404 });
-    }
+    const phone = normalizePhone(rawPhone);
+    const otp = rawOtp.trim();
 
-    // 3. Check if already verified
-    if (otpRow.is_verified) {
-       return apiJson(request, { 
-         success: true, 
-         verified: true,
-         message: 'Already verified'
-       });
-    }
+    // Fully encapsulated secure verification (timing-safe, brute-force protected)
+    const result = await verifyAdminOtp(phone, otp);
 
-    // 4. Check if expired
-    const now = new Date();
-    const expiresAt = new Date(otpRow.otp_expires_at);
-    if (now > expiresAt) {
-      return apiJson(request, { error: 'Verification code expired. Please request a new one.' }, { status: 400 });
-    }
-
-    // 5. Verify the code
-    const hashedInput = Buffer.from(otp).toString('base64');
-    if (hashedInput !== otpRow.otp_code_hash) {
-      // Increment verification attempts
-      await supabase
-        .from('admin_otps')
-        .update({ verification_attempts: (otpRow.verification_attempts || 0) + 1 })
-        .eq('id', otpRow.id);
-
-      return apiJson(request, { error: 'Incorrect verification code' }, { status: 400 });
-    }
-
-    // 6. Success - mark as verified
-    const { error: updateError } = await supabase
-      .from('admin_otps')
-      .update({
-        is_verified: true,
-        otp_verified_at: new Date().toISOString(),
-        otp_code_hash: null, // Clear it out
-        verification_attempts: 0
-      })
-      .eq('id', otpRow.id);
-
-    if (updateError) {
-      console.error('Admin OTP verify update error:', updateError);
-      return apiJson(request, { error: 'Failed to complete verification' }, { status: 500 });
+    if (!result.success) {
+      return apiJson(request, { error: result.error }, { status: result.status });
     }
 
     return apiJson(request, {
       success: true,
       verified: true,
-      admin: {
-        email: admin.email,
-        name: admin.name
-      }
+      admin: result.admin,
     });
-
   } catch (error: any) {
-    console.error('Admin OTP verify unexpected error:', error);
+    console.error('Admin verify-otp unexpected error:', error);
     return apiJson(request, { error: 'Unable to verify OTP' }, { status: 500 });
   }
 }

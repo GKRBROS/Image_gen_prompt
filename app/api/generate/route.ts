@@ -75,11 +75,11 @@ export async function POST(request: NextRequest) {
 
   try {
     const formData = await request.formData();
-    const prevalidatedEmail = typeof formData.get('email') === 'string' ? String(formData.get('email')) : '';
+    const prevalidatedPhone = typeof formData.get('phone') === 'string' ? String(formData.get('phone')) : '';
     const rateLimit = enforceRateLimit(request, {
       endpointKey: 'generate',
       limits: RATE_LIMITS.generate,
-      userIdentifier: prevalidatedEmail,
+      userIdentifier: prevalidatedPhone,
     });
     if (rateLimit.limited) {
       return apiJson(
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
       return apiJson(request, { error: validated.error }, { status: 400 });
     }
 
-    const { photo, email, requestId, name, organization, gender } = validated.data;
+    const { photo, phone, requestId, name, organization, gender } = validated.data;
 
     const supabase = getSupabaseClient();
 
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
     const requestQuery = supabase
       .from(IMAGE_GENERATION_TABLE)
       .select(requestSelect)
-      .eq('email', email)
+      .eq('phone', phone)
       .order('created_at', { ascending: false })
       .limit(1);
 
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
     const requestRow = requestRows?.[0] || null;
 
     if (!requestId && !requestRow) {
-      return apiJson(request, { error: 'No verified request found for this email' }, { status: 404 });
+      return apiJson(request, { error: 'No verified request found for this phone number' }, { status: 404 });
     }
 
     const resolvedRequestId = requestId || requestRow?.id || '';
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
     const { data: validatedRequestRow, error: validatedRequestError } = await supabase
       .from(IMAGE_GENERATION_TABLE)
       .select('id, is_verified')
-      .eq('email', email)
+      .eq('phone', phone)
       .eq('id', resolvedRequestId)
       .maybeSingle();
 
@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
       return apiJson(request, { error: 'Unable to validate session' }, { status: 500 });
     }
     if (!validatedRequestRow) return apiJson(request, { error: 'No matching verified request found' }, { status: 404 });
-    if (!validatedRequestRow.is_verified) return apiJson(request, { error: 'Email is not verified yet' }, { status: 403 });
+    if (!validatedRequestRow.is_verified) return apiJson(request, { error: 'Phone number is not verified yet' }, { status: 403 });
 
     const imageMimeType = (photo.type || '').toLowerCase();
     const imageExtension = (photo.name.split('.').pop() || '').toLowerCase();
@@ -296,9 +296,9 @@ export async function POST(request: NextRequest) {
         generated_at: new Date().toISOString(),
         last_error: null,
       })
-      .eq('email', email)
+      .eq('phone', phone)
       .eq('id', validatedRequestRow.id)
-      .select('id, email, final_image_url')
+      .select('id, phone, final_image_url')
       .single();
 
     if (dbError) {
@@ -306,17 +306,9 @@ export async function POST(request: NextRequest) {
       return apiJson(request, { error: 'Unable to persist generation result' }, { status: 500 });
     }
 
-    // Send final image to user email
-    try {
-      await sendFinalImageEmail({
-        to: email,
-        name: name,
-        imageUrl: finalImageUrl,
-      });
-    } catch (emailError) {
-      console.error('Failed to send final image email:', emailError);
-      // Non-critical error, don't fail the response
-    }
+    // Final image delivery via email is disabled as we transitioned to phone-based flow.
+    // TODO: Implement SMS delivery for the final image link if required.
+    console.log(`Generation completed for phone: ${phone}. Final image URL: ${finalImageUrl}`);
 
     return apiJson(request, {
       success: true,

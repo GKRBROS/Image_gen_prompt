@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { apiJson, handleCorsPreflight, rejectIfOriginNotAllowed } from '@/lib/apiSecurity';
-import { generateOtp, hashOtp, IMAGE_GENERATION_TABLE, normalizeEmail } from '@/lib/generationFlow';
+import { generateOtp, hashOtp, IMAGE_GENERATION_TABLE, normalizePhone } from '@/lib/generationFlow';
 import { RATE_LIMITS, enforceRateLimit } from '@/lib/rateLimit';
 import { parseStrictJson, validateRequestOtpInput } from '@/lib/requestValidation';
-import { sendOtpEmail } from '@/lib/sesEmail';
+import { sendOtpSms } from '@/lib/snsSms';
 import { getSupabaseClient } from '@/lib/supabase';
 
 export const runtime = 'nodejs';
@@ -21,11 +21,11 @@ export async function POST(request: NextRequest) {
   try {
     const body = await parseStrictJson(request);
 
-    const prevalidatedEmail = typeof body?.email === 'string' ? body.email : '';
+    const prevalidatedPhone = typeof body?.phone === 'string' ? body.phone : '';
     const rateLimit = enforceRateLimit(request, {
       endpointKey: 'requestOtp',
       limits: RATE_LIMITS.requestOtp,
-      userIdentifier: prevalidatedEmail,
+      userIdentifier: prevalidatedPhone,
     });
     if (rateLimit.limited) {
       return apiJson(
@@ -43,13 +43,13 @@ export async function POST(request: NextRequest) {
       return apiJson(request, { error: validated.error }, { status: 400 });
     }
 
-    const email = normalizeEmail(validated.data.email);
+    const phone = normalizePhone(validated.data.phone);
     const supabase = getSupabaseClient();
 
     const { data: existingRequest, error: selectError } = await supabase
       .from(IMAGE_GENERATION_TABLE)
       .select('id, is_verified, generation_status')
-      .eq('email', email)
+      .eq('phone', phone)
       .maybeSingle();
 
     if (selectError) {
@@ -60,20 +60,20 @@ export async function POST(request: NextRequest) {
     if (existingRequest?.generation_status === 'completed') {
       return apiJson(
         request,
-        { error: 'This email has already completed generation. Please use a different email.' },
+        { error: 'This phone number has already completed generation. Please use a different phone number.' },
         { status: 409 }
       );
     }
 
     const otp = generateOtp();
-    const otpCodeHash = hashOtp(email, otp);
+    const otpCodeHash = hashOtp(phone, otp);
     const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
     const { data, error } = await supabase
       .from(IMAGE_GENERATION_TABLE)
       .upsert(
         {
-          email,
+          phone,
           otp_code_hash: otpCodeHash,
           otp_expires_at: otpExpiresAt,
           otp_verified_at: null,
@@ -84,9 +84,9 @@ export async function POST(request: NextRequest) {
           last_error: null,
           updated_at: new Date().toISOString(),
         },
-        { onConflict: 'email' }
+        { onConflict: 'phone' }
       )
-      .select('id, email, otp_expires_at')
+      .select('id, phone, otp_expires_at')
       .single();
 
     if (error) {
@@ -98,18 +98,18 @@ export async function POST(request: NextRequest) {
       return apiJson(request, { error: 'Unable to create OTP request' }, { status: 500 });
     }
 
-    let messageId: string | null = null;
+    let messageId: string | null | undefined = undefined;
 
     try {
-      messageId = await sendOtpEmail({ to: email, otp });
-    } catch (mailError: any) {
+      messageId = await sendOtpSms({ to: phone, otp });
+    } catch (smsError: any) {
       if (!existingRequest && data?.id) {
         await supabase.from(IMAGE_GENERATION_TABLE).delete().eq('id', data.id);
       }
-      console.error('OTP email send error:', mailError);
+      console.error('OTP SMS send error:', smsError);
       return apiJson(
         request,
-        { error: 'Failed to send OTP email' },
+        { error: 'Failed to send OTP SMS' },
         { status: 500 }
       );
     }
@@ -119,10 +119,10 @@ export async function POST(request: NextRequest) {
     return apiJson(request, {
       success: true,
       requestId: data.id,
-      email: data.email,
+      phone: data.phone,
       expiresAt: data.otp_expires_at,
       expiresInMinutes: 10,
-      emailSent: true,
+      smsSent: true,
       messageId,
       otp: exposeOtp ? otp : undefined,
     });
@@ -135,3 +135,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
