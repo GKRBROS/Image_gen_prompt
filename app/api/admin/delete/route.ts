@@ -15,8 +15,8 @@ export async function DELETE(req: NextRequest) {
     return apiJson(req, { error: 'Invalid content type' }, { status: 400 });
   }
 
-  const { email } = await req.json();
-  if (!email) return apiJson(req, { error: 'Admin email is required' }, { status: 400 });
+  const { phone } = await req.json();
+  if (!phone) return apiJson(req, { error: 'Admin phone is required' }, { status: 400 });
 
   const admin = await requireAdminAuth(req);
   if (!admin) {
@@ -29,12 +29,12 @@ export async function DELETE(req: NextRequest) {
     return apiJson(req, { error: 'Cannot delete the only remaining administrator' }, { status: 403 });
   }
 
-  const { error } = await db.from('admin_users').delete().eq('email', email);
+  const { error } = await db.from('admin_users').delete().eq('phone', phone);
 
   if (error) {
     console.error('Failed to remove administrator:', error);
     return apiJson(req, { error: 'Failed to remove administrator' }, { status: 500 });
   }
 
-  return apiJson(req, { success: true, email });
+  return apiJson(req, { success: true, phone });
 }

@@ -11,9 +11,16 @@ const DEV_FALLBACK_OTP_SECRET = crypto.randomBytes(32).toString('hex');
 
 export const IMAGE_GENERATION_TABLE = 'image_generation_requests';
 
-export const normalizePhone = (phone: string) => phone.trim().replace(/\s+/g, '');
+export const normalizePhone = (phone: string) => {
+	const cleaned = phone.trim().replace(/\s+/g, '');
+	// Basic E.164 validation: starting with + followed by 10-15 digits
+	if (!/^\+\d{10,15}$/.test(cleaned)) {
+		throw new Error('Invalid phone number format. Please use E.164 format (e.g., +919876543210)');
+	}
+	return cleaned;
+};
 
-export const generateOtp = () => crypto.randomInt(0, 1_000_000).toString().padStart(6, '0');
+export const generateOtp = () => crypto.randomInt(100_000, 1_000_000).toString();
 
 export const hashOtp = (phone: string, otp: string) => {
 	const secret = OTP_SECRET || (process.env.NODE_ENV === 'production' ? '' : DEV_FALLBACK_OTP_SECRET);
@@ -22,8 +29,8 @@ export const hashOtp = (phone: string, otp: string) => {
 	}
 
 	return crypto
-		.createHash('sha256')
-		.update(`${normalizePhone(phone)}:${otp}:${secret}`)
+		.createHmac('sha256', secret)
+		.update(`${normalizePhone(phone)}:${otp}`)
 		.digest('hex');
 };
 

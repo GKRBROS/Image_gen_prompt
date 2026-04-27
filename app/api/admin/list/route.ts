@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await db
     .from('admin_users')
-    .select('id, email, name, created_at, updated_at')
+    .select('id, phone, name, created_at, updated_at')
     .order('created_at', { ascending: false });
 
   if (error) {
