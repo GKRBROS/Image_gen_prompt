@@ -11,6 +11,9 @@ const DEV_FALLBACK_OTP_SECRET = crypto.randomBytes(32).toString('hex');
 
 export const IMAGE_GENERATION_TABLE = 'image_generation_requests';
 
+/**
+ * Normalizes phone number to E.164 format and validates it.
+ */
 export const normalizePhone = (phone: string) => {
 	const cleaned = phone.trim().replace(/\s+/g, '');
 	// Basic E.164 validation: starting with + followed by 10-15 digits
@@ -20,8 +23,15 @@ export const normalizePhone = (phone: string) => {
 	return cleaned;
 };
 
+/**
+ * Generates a cryptographically secure 6-digit OTP.
+ */
 export const generateOtp = () => crypto.randomInt(100_000, 1_000_000).toString();
 
+/**
+ * Hashes OTP using HMAC-SHA256 with a secret salt.
+ * The salt is required in production.
+ */
 export const hashOtp = (phone: string, otp: string) => {
 	const secret = OTP_SECRET || (process.env.NODE_ENV === 'production' ? '' : DEV_FALLBACK_OTP_SECRET);
 	if (!secret) {
