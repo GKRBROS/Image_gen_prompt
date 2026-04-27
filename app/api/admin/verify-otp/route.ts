@@ -2,7 +2,6 @@ import { NextRequest } from 'next/server';
 
 import { apiJson, handleCorsPreflight, rejectIfOriginNotAllowed } from '@/lib/apiSecurity';
 import { verifyAdminOtp } from '@/lib/adminAuth';
-import { normalizePhone } from '@/lib/generationFlow';
 import { RATE_LIMITS, enforceRateLimit } from '@/lib/rateLimit';
 import { parseStrictJson } from '@/lib/requestValidation';
 
@@ -25,11 +24,11 @@ export async function POST(request: NextRequest) {
   try {
     const body = await parseStrictJson(request);
 
-    const rawPhone = typeof body?.phone === 'string' ? body.phone : '';
+    const rawEmail = typeof body?.email === 'string' ? body.email : '';
     const rawOtp = typeof body?.otp === 'string' ? body.otp : '';
 
-    if (!rawPhone || !rawOtp) {
-      return apiJson(request, { error: 'Phone number and verification code are required' }, { status: 400 });
+    if (!rawEmail || !rawOtp) {
+      return apiJson(request, { error: 'Email and verification code are required' }, { status: 400 });
     }
 
     // Rate limit per IP on verify endpoint
@@ -50,11 +49,11 @@ export async function POST(request: NextRequest) {
       return apiJson(request, { error: 'Enter the 6-digit verification code' }, { status: 400 });
     }
 
-    const phone = normalizePhone(rawPhone);
+    const email = rawEmail.trim().toLowerCase();
     const otp = rawOtp.trim();
 
     // Fully encapsulated secure verification (timing-safe, brute-force protected)
-    const result = await verifyAdminOtp(phone, otp);
+    const result = await verifyAdminOtp(email, otp);
 
     if (!result.success) {
       return apiJson(request, { error: result.error }, { status: result.status });
