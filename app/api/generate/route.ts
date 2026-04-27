@@ -26,7 +26,7 @@ export async function OPTIONS(request: NextRequest) {
   return handleCorsPreflight(request);
 }
 
-const OPENROUTER_TIMEOUT_MS = 120000;
+const OPENROUTER_TIMEOUT_MS = 90000;
 const DEFAULT_OPENROUTER_IMAGE_MODELS = ['sourceful/riverflow-v2-fast-preview'];
 const OPENROUTER_IMAGE_MODELS = (process.env.OPENROUTER_IMAGE_MODELS || '')
   .split(',')
@@ -47,7 +47,8 @@ const ALLOWED_IMAGE_MIME_TYPES = new Set([
 const ALLOWED_IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'webp']);
 
 const buildFinalImageUrl = (request: NextRequest, finalImagePath: string) => {
-  const origin = request.nextUrl.origin;
+  const envOrigin = process.env.NEXT_PUBLIC_APP_URL?.trim()?.replace(/\/$/, '');
+  const origin = envOrigin || request.nextUrl.origin;
 
   if (!finalImagePath) return '';
 
