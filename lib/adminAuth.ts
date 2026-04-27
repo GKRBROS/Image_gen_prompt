@@ -1,5 +1,6 @@
 import { db } from './supabase';
-import { randomBytes, timingSafeEqual } from 'crypto';
+import crypto, { randomBytes, timingSafeEqual } from 'crypto';
+import { sendOtpEmail } from './sesEmail';
 
 export async function validateAdminEmail(email: string) {
   const { data } = await db.from('admin_users').select('*').eq('email', email).single();
@@ -9,7 +10,15 @@ export async function validateAdminEmail(email: string) {
 const OTP_SECRET = process.env.OTP_SECRET || 'dev-secret-admin';
 
 export function hashAdminOtp(email: string, otp: string) {
-  return Buffer.from(email + ':' + otp + ':' + OTP_SECRET).toString('base64');
+  const secret = OTP_SECRET;
+  if (!secret) {
+    throw new Error('OTP_SECRET must be configured');
+  }
+
+  return crypto
+    .createHmac('sha256', secret)
+    .update(`${email.trim().toLowerCase()}:${otp}`)
+    .digest('hex');
 }
 
 export async function sendOtpToAdmin(email: string) {
@@ -30,8 +39,16 @@ export async function sendOtpToAdmin(email: string) {
     console.log(`[DEV] Admin OTP for ${email}: ${otp}`);
   }
 
-  // TODO: Send OTP via email (reuse user flow)
-  return { success: true, expiresAt, expiresInMinutes: 10 };
+  // Send OTP via email
+  let emailSent = false;
+  try {
+    await sendOtpEmail({ to: email, otp });
+    emailSent = true;
+  } catch (error) {
+    console.error(`Failed to send admin OTP email to ${email}:`, error);
+  }
+
+  return { success: true, expiresAt, expiresInMinutes: 10, emailSent };
 }
 
 export async function rateLimitAdminOtp(email: string, req: any) {
@@ -69,7 +86,19 @@ export async function verifyAdminOtp(email: string, otp: string) {
   }
 
   const expectedHash = hashAdminOtp(email, otp);
-  if (data.otp_code_hash !== expectedHash) {
+  const storedHash = data.otp_code_hash || '';
+
+  let hashesMatch = false;
+  try {
+    hashesMatch = timingSafeEqual(
+      Buffer.from(expectedHash, 'hex'),
+      Buffer.from(storedHash, 'hex')
+    );
+  } catch {
+    hashesMatch = false;
+  }
+
+  if (!hashesMatch) {
     await db
       .from('admin_otps')
       .update({ verification_attempts: (data.verification_attempts || 0) + 1 })

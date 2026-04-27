@@ -31,5 +31,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to send OTP' }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true, email, expiresAt: otpResult.expiresAt, expiresInMinutes: otpResult.expiresInMinutes, emailSent: true });
+  return NextResponse.json({ 
+    success: true, 
+    email, 
+    expiresAt: otpResult.expiresAt, 
+    expiresInMinutes: otpResult.expiresInMinutes, 
+    emailSent: otpResult.emailSent 
+  });
 }

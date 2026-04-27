@@ -11,7 +11,7 @@ const snsClient = new SNSClient({
 export class OtpService {
   static async sendOtp(phoneNumber: string, otpCode: string) {
     try {
-      const message = `Your OTP code is: ${otpCode}. It will expire in 10 minutes.`;
+      const message = `Your Frame Forge verification code is: ${otpCode}. It will expire in 10 minutes.`;
 
       const command = new PublishCommand({
         Message: message,
