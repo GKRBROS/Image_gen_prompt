@@ -4,7 +4,7 @@ import { apiJson, handleCorsPreflight, rejectIfOriginNotAllowed } from '@/lib/ap
 import { generateOtp, hashOtp, IMAGE_GENERATION_TABLE, normalizePhone } from '@/lib/generationFlow';
 import { RATE_LIMITS, enforceRateLimit } from '@/lib/rateLimit';
 import { parseStrictJson, validateRequestOtpInput } from '@/lib/requestValidation';
-import { sendOtpSms } from '@/lib/snsSms';
+import { OtpService } from '@/lib/snsSms';
 import { getSupabaseClient } from '@/lib/supabase';
 
 export const runtime = 'nodejs';
@@ -101,7 +101,11 @@ export async function POST(request: NextRequest) {
     let messageId: string | null | undefined = undefined;
 
     try {
-      messageId = await sendOtpSms({ to: phone, otp });
+      const otpResponse = await OtpService.sendOtp(phone, otp);
+      if (!otpResponse.success) {
+        throw new Error(otpResponse.error || 'Failed to send OTP');
+      }
+      messageId = otpResponse.messageId;
     } catch (smsError: any) {
       if (!existingRequest && data?.id) {
         await supabase.from(IMAGE_GENERATION_TABLE).delete().eq('id', data.id);

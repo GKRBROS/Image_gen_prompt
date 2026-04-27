@@ -1,4 +1,36 @@
 #
+# FrameForge Demo: Example OTP SMS Content
+
+When a user/admin requests an OTP, the SMS sent will look like:
+
+```
+FrameForge: Your verification code is 123456. This code is valid for 10 minutes. Do not share this code with anyone.
+```
+
+**Best Practices:**
+- Always include your brand name (FrameForge) at the start.
+- Clearly state the code and its validity period.
+- Warn users not to share the code.
+- Do not include links or ask for personal information in the OTP SMS.
+
+---
+
+## Troubleshooting: OTP Not Received or Wrong Number
+
+If you or your users receive OTPs on the wrong number, or do not receive them at all:
+
+- **Check the phone number format:** Always use the full international format (e.g., +919876543210).
+- **Ensure the number is registered:** Only registered numbers will receive OTPs for admin endpoints.
+- **Check for typos:** A single digit error will send the OTP to the wrong recipient.
+- **Carrier/SMS delays:** Sometimes SMS delivery can be delayed by the carrier. Wait a few minutes and retry.
+- **Test with EXPOSE_OTP_IN_RESPONSE:** In development, set `EXPOSE_OTP_IN_RESPONSE=true` to see the OTP in the API response for debugging.
+- **Check AWS SNS logs:** Confirm the message was sent and delivered to the correct number.
+- **Test with a known good number:** Use a test script or a number you control to verify end-to-end delivery.
+
+If the issue persists, verify your backend logic for phone normalization and ensure the correct number is passed to the SMS provider.
+
+---
+#
 
 These endpoints are for secure admin authentication and management. Only registered admin phone numbers can request OTPs and register new admins. All security measures (CORS, rate limiting, OTP hashing, session binding, strict validation) are enforced as in the user flow.
 

@@ -1,68 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { sendOtpToAdmin, validateAdminEmail, rateLimitAdminOtp } from '@/lib/adminAuth';
+import { db } from '@/lib/supabase';
 
-import { apiJson, handleCorsPreflight, rejectIfOriginNotAllowed } from '@/lib/apiSecurity';
-import { rateLimitAdminOtp, sendOtpToAdmin, validateAdminPhone } from '@/lib/adminAuth';
-import { normalizePhone } from '@/lib/generationFlow';
-import { parseStrictJson } from '@/lib/requestValidation';
+export async function POST(req: NextRequest) {
+  // Strict CORS and content-type validation
+  if (req.headers.get('origin') && !process.env.ALLOWED_ADMIN_ORIGINS?.split(',').includes(req.headers.get('origin')!)) {
+    return NextResponse.json({ error: 'Origin not allowed' }, { status: 400 });
+  }
+  if (req.headers.get('content-type') !== 'application/json') {
+    return NextResponse.json({ error: 'Invalid content type' }, { status: 400 });
+  }
+  const { email } = await req.json();
+  if (!email) return NextResponse.json({ error: 'Email is required' }, { status: 400 });
 
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
-
-export async function OPTIONS(request: NextRequest) {
-  return handleCorsPreflight(request);
-}
-
-export async function POST(request: NextRequest) {
-  // Unified CORS guard (uses shared allowlist, not a separate env var)
-  const blockedOriginResponse = rejectIfOriginNotAllowed(request);
-  if (blockedOriginResponse) return blockedOriginResponse;
-
-  // Strict content-type enforcement
-  const contentType = request.headers.get('content-type') ?? '';
-  if (!contentType.startsWith('application/json')) {
-    return apiJson(request, { error: 'Invalid content type' }, { status: 400 });
+  // Rate limit per email and IP
+  const rateLimitResult = await rateLimitAdminOtp(email, req);
+  if (!rateLimitResult.allowed) {
+    return NextResponse.json({ error: rateLimitResult.error, retryAfterSeconds: rateLimitResult.retryAfter }, { status: 429 });
   }
 
-  try {
-    // Strict JSON parsing — rejects non-JSON, oversized, or malformed bodies
-    const body = await parseStrictJson(request);
-
-    const rawPhone = typeof body?.phone === 'string' ? body.phone : '';
-    if (!rawPhone) {
-      return apiJson(request, { error: 'Phone number is required' }, { status: 400 });
-    }
-
-    // Rate limit per IP (shared enforceRateLimit)
-    const rateLimit = rateLimitAdminOtp(request);
-    if (rateLimit.limited) {
-      return apiJson(
-        request,
-        { error: 'Too many OTP requests. Please try again shortly.', retryAfterSeconds: rateLimit.retryAfterSeconds },
-        { status: 429, headers: rateLimit.headers }
-      );
-    }
-
-    const phone = normalizePhone(rawPhone);
-
-    // Verify this phone is a registered admin — return identical error to avoid enumeration
-    const admin = await validateAdminPhone(phone);
-    if (!admin) {
-      // Deliberately vague to prevent phone enumeration
-      return apiJson(request, { error: 'Phone number is not a registered admin' }, { status: 403 });
-    }
-
-    // Generate OTP, hash, store, send via SNS
-    const result = await sendOtpToAdmin(phone);
-
-    return apiJson(request, {
-      success: true,
-      phone,
-      expiresAt: result.expiresAt,
-      expiresInMinutes: result.expiresInMinutes,
-      smsSent: true,
-    });
-  } catch (error: any) {
-    console.error('Admin request-otp unexpected error:', error);
-    return apiJson(request, { error: 'Unable to process OTP request' }, { status: 500 });
+  // Check if email is a registered admin
+  const admin = await validateAdminEmail(email);
+  if (!admin) {
+    return NextResponse.json({ error: 'Email is not a registered admin' }, { status: 403 });
   }
+
+  // Send OTP
+  const otpResult = await sendOtpToAdmin(email);
+  if (!otpResult.success) {
+    return NextResponse.json({ error: 'Failed to send OTP' }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true, email, expiresAt: otpResult.expiresAt, expiresInMinutes: otpResult.expiresInMinutes, emailSent: true });
 }
