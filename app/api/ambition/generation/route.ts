@@ -93,8 +93,8 @@ export async function POST(request: NextRequest) {
       return jsonResponse({ error: 'No photo provided' }, { status: 400 });
     }
 
-    if (!photoInput.size || photoInput.size > 10 * 1024 * 1024) {
-      return jsonResponse({ error: 'Photo must be between 1 byte and 10 MB' }, { status: 400 });
+    if (!photoInput.size || photoInput.size > 2 * 1024 * 1024) {
+      return jsonResponse({ error: 'Photo must be between 1 byte and 2 MB' }, { status: 400 });
     }
 
     const name = cleanText(formData.get('name'));

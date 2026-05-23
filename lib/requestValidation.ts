@@ -115,8 +115,8 @@ export const validateGenerateFormData = (formData: FormData) => {
         return { error: 'No photo provided' };
     }
 
-    if (!fileInput.size || fileInput.size > 10 * 1024 * 1024) {
-        return { error: 'Photo must be between 1 byte and 10 MB' };
+    if (!fileInput.size || fileInput.size > 2 * 1024 * 1024) {
+        return { error: 'Photo must be between 1 byte and 2 MB' };
     }
 
     const phoneResult = requirePhone(formData.get('phone'));

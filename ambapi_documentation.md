@@ -2,7 +2,7 @@
 
 ## Endpoint
 
-`POST /api/ambition/generation`
+`POST https://memento.frameforge.one/api/ambition/generation`
 
 ## Purpose
 
@@ -36,6 +36,10 @@ The prompt text is defined in [lib/amb_prompts.ts](lib/amb_prompts.ts) and switc
   "gender": "male"
 }
 ```
+
+Additional notes:
+- Maximum upload size: 2 MB per image (server-side validation).
+- Returned image URLs are presigned S3 URLs (or public S3 URLs) and can be used directly by clients for preview/download.
 
 ## Supabase Table
 
