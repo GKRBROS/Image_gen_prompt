@@ -20,11 +20,30 @@ const BUCKET_NAME = bucketFromPath || '';
 const KEY_PREFIX = (EXPLICIT_KEY_PREFIX || pathPrefixParts.join('/')).replace(/^\/+|\/+$/g, '');
 
 let s3Client: S3Client | null = null;
+let resolvedRegionOverride: string | null = null;
+
+const getEffectiveRegion = () => resolvedRegionOverride || AWS_S3_REGION;
+
+const resetS3Client = () => {
+  s3Client = null;
+};
+
+const extractRegionFromEndpoint = (endpoint?: string) => {
+  if (!endpoint) return null;
+  const match = endpoint.match(/\.s3[.-]([a-z0-9-]+)\.amazonaws\.com$/i);
+  return match?.[1] || null;
+};
+
+const isPermanentRedirectError = (error: unknown) => {
+  if (!error || typeof error !== 'object') return false;
+  const code = (error as { Code?: string; code?: string }).Code || (error as { code?: string }).code;
+  return code === 'PermanentRedirect';
+};
 
 const getS3Client = () => {
   if (!s3Client) {
     s3Client = new S3Client({
-      region: AWS_S3_REGION,
+      region: getEffectiveRegion(),
       credentials: {
         accessKeyId: AWS_ACCESS_KEY_ID,
         secretAccessKey: AWS_SECRET_ACCESS_KEY,
@@ -62,7 +81,7 @@ const getPublicUrl = (key: string) => {
     return `${PUBLIC_BASE_URL.replace(/\/$/, '')}/${encodeKeyForUrl(key)}`;
   }
 
-  return `https://${BUCKET_NAME}.s3.${AWS_S3_REGION}.amazonaws.com/${encodeKeyForUrl(key)}`;
+  return `https://${BUCKET_NAME}.s3.${getEffectiveRegion()}.amazonaws.com/${encodeKeyForUrl(key)}`;
 };
 
 export const getObjectAccessUrl = async (key: string, expiresInSec = S3_SIGNED_URL_EXPIRES_SEC) => {
@@ -96,16 +115,35 @@ export const uploadBufferToS3 = async (input: {
   }
 
   const resolvedKey = resolveKey(input.key);
-  const client = getS3Client();
-  await client.send(
+  const buildPutCommand = () =>
     new PutObjectCommand({
       Bucket: BUCKET_NAME,
       Key: resolvedKey,
       Body: input.body,
       ContentType: input.contentType,
       CacheControl: input.cacheControl || 'public,max-age=31536000,immutable',
-    })
-  );
+    });
+
+  try {
+    await getS3Client().send(buildPutCommand());
+  } catch (error) {
+    if (!isPermanentRedirectError(error)) {
+      throw error;
+    }
+
+    const hintedRegion = extractRegionFromEndpoint(
+      (error as { Endpoint?: string; endpoint?: string }).Endpoint ||
+        (error as { Endpoint?: string; endpoint?: string }).endpoint
+    );
+
+    if (!hintedRegion || hintedRegion === getEffectiveRegion()) {
+      throw error;
+    }
+
+    resolvedRegionOverride = hintedRegion;
+    resetS3Client();
+    await getS3Client().send(buildPutCommand());
+  }
 
   return getObjectAccessUrl(input.key);
 };

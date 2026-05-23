@@ -185,7 +185,7 @@ const uploadFinalBuffer = async (buffer: Buffer, filename: string, s3Folder = 'a
 
     const { data: { publicUrl } } = supabase.storage
       .from('generated-images')
-      .getPublicUrl(`final/${filename}`);
+      .getPublicUrl(`${s3Folder}/${filename}`);
 
     return publicUrl;
   }
