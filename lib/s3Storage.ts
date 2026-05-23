@@ -133,7 +133,7 @@ export const uploadBufferToS3 = async (input: {
 
     const hintedRegion = extractRegionFromEndpoint(
       (error as { Endpoint?: string; endpoint?: string }).Endpoint ||
-        (error as { Endpoint?: string; endpoint?: string }).endpoint
+      (error as { Endpoint?: string; endpoint?: string }).endpoint
     );
 
     if (!hintedRegion || hintedRegion === getEffectiveRegion()) {
