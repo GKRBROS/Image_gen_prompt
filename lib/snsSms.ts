@@ -45,3 +45,14 @@ export async function sendOtpSms({ to, otp }: SendOtpSmsParams) {
     throw new Error(err?.message || 'Failed to send SMS');
   }
 }
+
+export const OtpService = {
+  async sendOtp(to: string, otp: string) {
+    try {
+      const messageId = await sendOtpSms({ to, otp });
+      return { success: true, messageId };
+    } catch (error: any) {
+      return { success: false, error: error?.message || 'Failed to send OTP SMS' };
+    }
+  },
+};

@@ -3,6 +3,7 @@ import { existsSync } from 'fs';
 import { join } from 'path';
 import { mkdir, writeFile } from 'fs/promises';
 import { createCanvas, registerFont } from 'canvas';
+import type { OverlayOptions } from 'sharp';
 
 import { isS3Configured, uploadBufferToS3 } from '@/lib/s3Storage';
 import { getSupabaseClient } from '@/lib/supabase';
@@ -210,19 +211,19 @@ export async function mergeAmbitionImages(
         input: await sharp(generatedImagePath)
           .resize(A4_WIDTH_PX, A4_HEIGHT_PX, { fit: 'cover', position: 'center' })
           .toBuffer(),
-        blend: 'dest-over',
+        blend: 'dest-over' as const,
         top: 0,
         left: 0,
       },
     ])
     .toBuffer();
 
-  const finalCompositeLayers: Array<{ input: Buffer; top: number; left: number; blend: string }> = [
+  const finalCompositeLayers: OverlayOptions[] = [
     {
       input: layerBuffer,
       top: 0,
       left: 0,
-      blend: 'over',
+      blend: 'over' as const,
     },
   ];
 
@@ -231,7 +232,7 @@ export async function mergeAmbitionImages(
       input: await createTextOverlay(name),
       top: 0,
       left: 0,
-      blend: 'over',
+      blend: 'over' as const,
     });
   }
 

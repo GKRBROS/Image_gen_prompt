@@ -36,4 +36,10 @@ export const getSupabaseClient = () => {
 	return cachedClient;
 };
 
-export const db = getSupabaseClient();
+export const db = new Proxy({} as SupabaseClient, {
+	get(_target, property, receiver) {
+		const client = getSupabaseClient();
+		const value = Reflect.get(client, property, receiver);
+		return typeof value === 'function' ? value.bind(client) : value;
+	},
+}) as SupabaseClient;
